@@ -1,0 +1,75 @@
+[project]
+name = "youtube-shorts"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "sueun-dev",email = "sueun.dev@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai (>=1.76.2,<2.0.0)",
+    "python-dotenv (>=1.1.0,<2.0.0)",
+    "requests (>=2.32.3,<3.0.0)",
+    "gtts (>=2.5.4,<3.0.0)",
+    "pydub (>=0.25.1,<0.26.0)",
+    "runwayml (>=3.0.4,<4.0.0)",
+    "moviepy (>=2.1.2,<3.0.0)",
+    "google-auth (>=2.39.0,<3.0.0)",
+    "google-auth-oauthlib (>=1.2.2,<2.0.0)",
+    "google-api-python-client (>=2.169.0,<3.0.0)",
+]
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.5.0,<0.6.0"
+pyright = "^1.1.400"
+pytest = "^8.3.5"
+toml = "^0.10.2"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "venv",
+    ".env",
+    "dist",
+]
+# Same as Black
+line-length = 88
+# Assume Python 3.13
+target-version = "py313"
+
+[tool.ruff.lint]
+# Enable various code quality rules
+select = ["E", "F", "I", "UP", "B", "C4", "T20", "RET", "SIM"]
+# Ignore specific rules
+ignore = []
+# Allow autofix for all enabled rules (when using `ruff --fix`)
+fixable = ["A", "B", "C", "E", "F", "I", "UP", "RET", "SIM"]
+unfixable = []
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["youtube_shorts_gen"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
