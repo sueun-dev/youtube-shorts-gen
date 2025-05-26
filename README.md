@@ -1,127 +1,134 @@
-# YouTube Shorts 자동 생성기 Beta Version
+# YouTube Shorts 생성기
 
-YouTube Shorts를 자동으로 생성하고 업로드하는 AI 기반 파이프라인입니다.
+AI를 활용하여 YouTube Shorts 비디오를 자동으로 생성하고 업로드하는 파이프라인입니다.
 
-## 프로젝트 개요
+## 기능
 
-이 프로젝트는 다음과 같은 작업을 자동화합니다:
-
-1. OpenAI API를 사용하여 짧은 이야기 생성
-2. 이야기에 맞는 이미지 생성
-3. Runway ML을 사용하여 이미지로부터 비디오 생성
-4. 텍스트 음성 변환(TTS)을 사용하여 이야기 오디오 생성
-5. 비디오와 오디오 동기화
-6. 최종 비디오를 YouTube에 자동 업로드
+- OpenAI API를 사용한 스토리 생성
+- 인터넷 검색을 활용한 스토리 생성
+- DALL-E를 통한 이미지 생성
+- Runway ML을 사용한 비디오 생성
+- 텍스트-음성 변환(TTS) 및 비디오 동기화
+- 단락별 이미지-오디오 동기화
+- YouTube 자동 업로드
 
 ## 설치 방법
 
 ### 필수 요구 사항
 
-- Python 3.13+
-- Poetry (패키지 관리)
+- Python 3.10+
 - FFmpeg (비디오/오디오 처리)
-- OpenAI API 키
-- Runway ML API 키
-- Google API 인증 정보
+- API 키: OpenAI, Runway ML
+- YouTube API 인증 정보 (업로드 기능 사용 시)
+- BeautifulSoup4 (인터넷 콘텐츠 스크래핑)
 
 ### 설치 단계
 
-1. 저장소 클론하기:
+1. 저장소 클론:
    ```bash
-   git clone https://github.com/yourusername/youtube-shorts.git
+   git clone <repository-url>
    cd youtube-shorts
    ```
 
-2. Poetry를 사용하여 의존성 설치:
+2. 의존성 설치:
+   ```bash
+   pip install -e .
+   ```
+   또는 Poetry 사용 시:
    ```bash
    poetry install
+   poetry shell
    ```
 
-3. API 키 획득 및 환경 변수 설정:
-   
-   - OpenAI API 키는 [OpenAI 플랫폼](https://platform.openai.com/settings/organization/general)에서 얻을 수 있습니다.
-   - Runway ML API 키는 [Runway 개발자 문서](https://docs.dev.runwayml.com/)에서 계정 생성 후 얻을 수 있습니다.
-   
-   `.env` 파일을 생성하고 다음과 같이 설정합니다:
+3. 환경 설정:
+   `.env` 파일 생성 및 API 키 설정:
    ```
    OPENAI_API_KEY=your_openai_api_key
    RUNWAY_API_KEY=your_runway_api_key
    ```
 
-4. Google API 설정:
+4. YouTube 업로드 설정 (선택 사항):
+   - `client_secrets_template.json`을 `client_secrets.json`으로 복사
    - [Google Cloud Console](https://console.cloud.google.com)에서 프로젝트 생성
-   - YouTube Data API v3 활성화
-   - OAuth 2.0 클라이언트 ID 생성
-   - 다운로드한 인증 정보를 `client_secrets.json`으로 저장소 루트에 저장
+   - YouTube Data API v3 활성화 및 OAuth 2.0 인증 정보 획득
+   - 인증 정보를 `client_secrets.json`에 입력
 
-## 사용 방법
+## 실행 방법
 
-### 단일 실행
-
-프로젝트 루트 디렉토리에서 다음 명령어로 실행합니다:
+단일 실행:
 
 ```bash
-poetry run python main.py
+python main.py
 ```
 
-첫 실행 시 몇분 뒤 Google 계정 인증을 요청하는 브라우저 창이 열립니다. 인증 후에는 토큰이 저장되어 다음 실행부터는 자동으로 진행됩니다.
+첫 YouTube 업로드 시 Google 인증 창이 열립니다. 인증 후에는 자동으로 진행됩니다.
 
-### 자동 실행 모드
+## 작동 방식
 
-기본적으로 프로그램은 10분 간격으로 새로운 YouTube Shorts를 생성하고 업로드합니다. 이 설정은 `youtube_shorts_gen/main.py` 파일에서 변경할 수 있습니다.
+프로그램은 콘텐츠 소스에 따라 다음 단계로 실행됩니다:
 
-## 주요 컴포넌트
+### AI 생성 파이프라인
+1. 스토리 텍스트 생성 (OpenAI)
+2. 스토리 기반 이미지 생성 (DALL-E)
+3. 이미지 기반 비디오 생성 (Runway ML)
+4. 오디오와 비디오 동기화
+5. YouTube 업로드 (설정된 경우)
 
-### 1. 스토리 및 이미지 생성 (`youtube_script_gen.py`)
-OpenAI의 GPT 모델을 사용하여 짧은 이야기를 생성하고, DALL-E 모델을 사용하여 해당 이야기에 맞는 이미지를 생성합니다.
+### 인터넷 검색 파이프라인
+1. 인터넷에서 인기 있는 포스트 가져오기
+2. 콘텐츠 요약 및 단락 분할 (OpenAI)
+3. 각 단락에 대한 이미지 생성 (DALL-E)
+4. 각 단락에 대한 TTS 오디오 생성
+5. 단락별 이미지-오디오 동기화 및 비디오 생성
+6. 모든 단락 비디오 결합
+7. YouTube 업로드 (설정된 경우)
 
-### 2. 비디오 생성 (`runway.py`)
-Runway ML의 Gen-2 모델을 사용하여 이미지에서 움직이는 비디오를 생성합니다.
-
-### 3. 오디오 동기화 (`sync_video_with_tts.py`)
-gTTS를 사용하여 텍스트를 음성으로 변환하고, FFmpeg를 사용하여 비디오와 오디오를 동기화합니다.
-
-### 4. YouTube 업로드 (`upload_to_youtube.py`)
 Google API를 사용하여 최종 비디오를 YouTube에 자동으로 업로드합니다.
+
+## 출력 파일
+
+모든 실행은 타임스탬프 폴더에 저장됩니다 (`runs/YYYY-MM-DD_HH-MM-SS/`):
+
+### AI 생성 파이프라인
+- `story_prompt.txt`: 생성된 스토리 텍스트
+- `story_image.png`: 생성된 이미지
+- `story_video.mp4`: Runway로 생성된 비디오
+- `final_story_video.mp4`: 오디오가 포함된 최종 비디오
+
+### 인터넷 검색 파이프라인
+- `story_prompt.txt`: 생성된 스토리 텍스트
+- `paragraph_image_mapping.txt`: 단락과 이미지 매핑 정보
+- `images/`: 각 단락에 대한 이미지 폴더
+- `audio/`: 각 단락에 대한 TTS 오디오 폴더
+- `paragraph_videos/`: 각 단락에 대한 비디오 폴더
+- `final_story_video.mp4`: 모든 단락 비디오가 결합된 최종 비디오
 
 ## 문제 해결
 
-### 일반적인 오류
+주요 오류 해결:
 
-1. **API 키 오류**: `.env` 파일에 올바른 API 키가 설정되어 있는지 확인하세요.
-2. **FFmpeg 오류**: FFmpeg가 설치되어 있고 PATH에 추가되어 있는지 확인하세요.
-3. **Google 인증 오류**: `client_secrets.json` 파일이 올바른지, 그리고 YouTube Data API가 활성화되어 있는지 확인하세요.
-4. **디렉토리 오류**: 실행 전에 `runs` 디렉토리가 존재하는지 확인하세요. 없다면 자동으로 생성됩니다.
+- **API 키**: `.env` 파일에 유효한 API 키 확인
+- **FFmpeg**: 시스템에 FFmpeg 설치 여부 확인
+- **디렉토리**: `runs` 디렉토리가 자동으로 생성되지 않은 경우 수동으로 생성
+- **Google 인증**: `client_secrets.json` 파일 가용성 및 형식 확인
 
-### 로그 확인
+로그는 콘솔에 출력되며 오류 메시지를 확인하여 문제를 해결할 수 있습니다.
 
-각 단계에서 로그가 콘솔에 출력됩니다. 오류 발생 시 메시지를 확인하여 문제를 파악할 수 있습니다.
+## 주의사항
 
-## 코드 품질
-
-프로젝트는 다음과 같은 도구를 사용하여 코드 품질을 유지합니다:
-
-- **Ruff**: PEP8 스타일 가이드 준수, 린팅, 포맷 검사
-- **Pyright**: 정적 타입 검사
-- **pytest**: 자동화된 테스트
-
-```bash
-# 코드 품질 검사
-poetry run ruff check .
-
-# 타입 검사
-poetry run pyright
-
-# 테스트 실행
-poetry run python run_tests.py
-```
+- API 키를 안전하게 관리하세요
+- API 사용량 및 비용에 주의하세요
+- YouTube 업로드 시 저작권 및 커뮤니티 가이드라인을 준수하세요
 
 ## 라이선스
 
 이 프로젝트는 MIT 라이선스 하에 배포됩니다.
 
-## 주의사항
 
-- 생성된 콘텐츠에 대한 모든 책임은 사용자에게 있습니다.
-- API 사용량은 해당 서비스의 사용량 제한 및 과금 정책을 따릅니다.
-- YouTube의 정책을 준수하는 콘텐츠만 업로드하세요.
+## 구현된 기능
+
+1. 문장별로 분리하여 각 문장에 대한 이미지 생성 (GPT Image 사용) - ✅ 완료
+2. TTS(Text-to-Speech) 기능 추가 - ✅ 완료
+3. 문장별 이미지 표시 및 TTS와 동기화 - ✅ 완료
+4. 인터넷 콘텐츠 스크래핑 및 처리 - ✅ 완료
+6. 단락별 이미지-오디오 동기화 - ✅ 완료

@@ -82,3 +82,8 @@ Icon
 .com.apple.timemachine.donotpresent
 
 .coverage
+
+# Test runs
+test_runs/
+runs/
+test_run/
