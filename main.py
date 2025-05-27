@@ -1,16 +1,32 @@
 import logging
-import os
 import time
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from youtube_shorts_gen.config import RUNS_BASE_DIR, SLEEP_SECONDS
-from youtube_shorts_gen.runway import VideoGenerator
-from youtube_shorts_gen.sync_video_with_tts import VideoAudioSyncer
-from youtube_shorts_gen.upload_to_youtube import YouTubeUploader
-from youtube_shorts_gen.youtube_script_gen import YouTubeScriptGenerator
+from youtube_shorts_gen.pipelines.ai_content_pipeline import run_ai_content_pipeline
+from youtube_shorts_gen.pipelines.internet_content_pipeline import (
+    run_internet_content_pipeline,
+)
+from youtube_shorts_gen.pipelines.upload_pipeline import run_upload_pipeline
+from youtube_shorts_gen.utils.config import RUNS_BASE_DIR, SLEEP_SECONDS
+
+# Constants for user choices
+AI_CHOICE = "1"
+INTERNET_CHOICE = "2"
+
+# Constants for pipeline result dictionary keys
+RESULT_KEY_SUCCESS = "success"
+RESULT_KEY_ERROR = "error"
+RESULT_KEY_VIDEO_URL = "video_url"
+RESULT_KEY_FINAL_VIDEO_PATH = "final_video_path"
 
 
-def setup_logging():
+def setup_logging() -> None:
+    """Configure logging for the application.
+
+    Sets up basic logging configuration with timestamp formatting.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
@@ -18,46 +34,90 @@ def setup_logging():
     )
 
 
-def run_pipeline_once():
-    """Run a single end-to-end generation and upload pipeline."""
+def _setup_run_directory() -> Path:
+    """Create and return a timestamped directory for the current run."""
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_dir = os.path.join(RUNS_BASE_DIR, timestamp)
-    os.makedirs(run_dir, exist_ok=True)
+    run_dir = Path(RUNS_BASE_DIR) / timestamp
+    run_dir.mkdir(parents=True)
+    logging.info("[SETUP] Created run directory: %s", run_dir)
+    return run_dir
 
-    logging.info("[START] New Run: %s", run_dir)
+def _get_content_source_choice() -> str:
+    """Prompt user for content source and validate the input."""
+    while True:
+        choice = input(
+            f"Choose content source - AI ({AI_CHOICE}) or Internet ({INTERNET_CHOICE}): "
+        )
+        if choice in [AI_CHOICE, INTERNET_CHOICE]:
+            return choice
+        logging.warning(
+            "Invalid choice. Please enter '%s' for AI or '%s' for Internet.",
+            AI_CHOICE,
+            INTERNET_CHOICE,
+        )
 
-    try:
-        # 1. Generate story and image
-        script_generator = YouTubeScriptGenerator(run_dir)
-        script_generator.run()
+def _execute_chosen_pipeline(
+    choice: str, run_dir: Path
+) -> Dict[str, Any]:
+    """Execute the chosen content generation pipeline."""
+    if choice == INTERNET_CHOICE:
+        logging.info("Starting Internet content pipeline...")
+        return run_internet_content_pipeline(str(run_dir))
+    logging.info("Starting AI content pipeline...")
+    return run_ai_content_pipeline(str(run_dir))
 
-        # 2. Generate video using Runway
-        video_generator = VideoGenerator(run_dir)
-        video_generator.generate()
+def _process_pipeline_output(
+    content_result: Dict[str, Any], run_dir: Path
+) -> None:
+    """Process the output of the content pipeline, handling upload and logging."""
+    if content_result.get(RESULT_KEY_SUCCESS, False):
+        logging.info("Content generation successful. Proceeding to upload...")
+        upload_result = run_upload_pipeline(str(run_dir))
 
-        # 3. Sync video with TTS
-        synchronizer = VideoAudioSyncer(run_dir)
-        synchronizer.sync()
-
-        # 4. Upload to YouTube (if credentials are available)
-        uploader = YouTubeUploader(run_dir)
-        video_url = uploader.upload()
-        
-        if video_url:
-            logging.info("[DONE] Uploaded to YouTube: %s", video_url)
+        if upload_result.get(RESULT_KEY_SUCCESS, False):
+            logging.info(
+                "[SUCCESS] Uploaded to YouTube: %s",
+                upload_result.get(RESULT_KEY_VIDEO_URL, "N/A"),
+            )
         else:
-            logging.info("[DONE] Video created but not uploaded to YouTube: %s", 
-                         os.path.join(run_dir, "final_story_video.mp4"))
+            logging.info(
+                "[INFO] Video created but not uploaded to YouTube: %s",
+                content_result.get(RESULT_KEY_FINAL_VIDEO_PATH, "Unknown path"),
+            )
+    else:
+        logging.error(
+            "[FAILURE] Content generation failed: %s",
+            content_result.get(RESULT_KEY_ERROR, "Unknown error"),
+        )
 
-        logging.info("[DONE] Pipeline completed for: %s", run_dir)
-    except Exception as e:
-        logging.exception("[ERROR] Pipeline failed: %s", e)
+def run_pipeline_once() -> None:
+    """Run one complete pipeline iteration including setup, execution, and processing."""
+    run_dir: Optional[Path] = None
+    try:
+        run_dir = _setup_run_directory()
+        logging.info("[START] New Run: %s", run_dir)
+
+        choice = _get_content_source_choice()
+        content_result = _execute_chosen_pipeline(choice, run_dir)
+        _process_pipeline_output(content_result, run_dir)
+
+        logging.info("[DONE] Pipeline iteration completed for: %s", run_dir)
+
+    except (OSError, ValueError, KeyError) as e:
+        logging.exception("[CRITICAL] Pipeline failed with a known error type for run %s:", run_dir)
+    except Exception:
+        logging.exception("[CRITICAL] Pipeline failed with an unexpected error for run %s:", run_dir)
 
 
-if __name__ == "__main__":
+def main() -> None:
     setup_logging()
 
     while True:
         run_pipeline_once()
-        logging.info("Waiting %d minutes until next run...", SLEEP_SECONDS // 60)
+        sleep_minutes = SLEEP_SECONDS // 60
+        logging.info("Waiting %d minutes until the next run...", sleep_minutes)
         time.sleep(SLEEP_SECONDS)
+
+
+if __name__ == "__main__":
+    main()
