@@ -53,7 +53,7 @@ class ParagraphTTS:
             )
             return None
 
-    def generate_for_paragraph(self, text: str, index: int) -> str:
+    def generate_for_paragraph(self, text: str, index: int) -> str | None:
         """Generate TTS for a paragraph, trying OpenAI first then falling back to gTTS.
 
         Args:

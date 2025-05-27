@@ -2,7 +2,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from youtube_shorts_gen.pipelines.ai_content_pipeline import run_ai_content_pipeline
 from youtube_shorts_gen.pipelines.internet_content_pipeline import (
@@ -42,12 +42,16 @@ def _setup_run_directory() -> Path:
     logging.info("[SETUP] Created run directory: %s", run_dir)
     return run_dir
 
+
 def _get_content_source_choice() -> str:
     """Prompt user for content source and validate the input."""
     while True:
-        choice = input(
-            f"Choose content source - AI ({AI_CHOICE}) or Internet ({INTERNET_CHOICE}): "
+        # Break long prompt into shorter strings
+        prompt = (
+            f"Choose content source - AI ({AI_CHOICE}) or "
+            f"Internet ({INTERNET_CHOICE}): "
         )
+        choice = input(prompt)
         if choice in [AI_CHOICE, INTERNET_CHOICE]:
             return choice
         logging.warning(
@@ -56,9 +60,8 @@ def _get_content_source_choice() -> str:
             INTERNET_CHOICE,
         )
 
-def _execute_chosen_pipeline(
-    choice: str, run_dir: Path
-) -> Dict[str, Any]:
+
+def _execute_chosen_pipeline(choice: str, run_dir: Path) -> dict[str, Any]:
     """Execute the chosen content generation pipeline."""
     if choice == INTERNET_CHOICE:
         logging.info("Starting Internet content pipeline...")
@@ -66,9 +69,8 @@ def _execute_chosen_pipeline(
     logging.info("Starting AI content pipeline...")
     return run_ai_content_pipeline(str(run_dir))
 
-def _process_pipeline_output(
-    content_result: Dict[str, Any], run_dir: Path
-) -> None:
+
+def _process_pipeline_output(content_result: dict[str, Any], run_dir: Path) -> None:
     """Process the output of the content pipeline, handling upload and logging."""
     if content_result.get(RESULT_KEY_SUCCESS, False):
         logging.info("Content generation successful. Proceeding to upload...")
@@ -90,9 +92,13 @@ def _process_pipeline_output(
             content_result.get(RESULT_KEY_ERROR, "Unknown error"),
         )
 
+
 def run_pipeline_once() -> None:
-    """Run one complete pipeline iteration including setup, execution, and processing."""
-    run_dir: Optional[Path] = None
+    """Run one complete pipeline iteration.
+
+    Includes setup, execution, and processing of the content pipeline.
+    """
+    run_dir: Path | None = None
     try:
         run_dir = _setup_run_directory()
         logging.info("[START] New Run: %s", run_dir)
@@ -103,10 +109,14 @@ def run_pipeline_once() -> None:
 
         logging.info("[DONE] Pipeline iteration completed for: %s", run_dir)
 
-    except (OSError, ValueError, KeyError) as e:
-        logging.exception("[CRITICAL] Pipeline failed with a known error type for run %s:", run_dir)
+    except (OSError, ValueError, KeyError):
+        logging.exception(
+            "[CRITICAL] Pipeline failed with a known error type for run %s:", run_dir
+        )
     except Exception:
-        logging.exception("[CRITICAL] Pipeline failed with an unexpected error for run %s:", run_dir)
+        logging.exception(
+            "[CRITICAL] Pipeline failed with an unexpected error for run %s:", run_dir
+        )
 
 
 def main() -> None:

@@ -25,14 +25,18 @@ OPENAI_IMAGE_MODEL: Final[str] = "gpt-image-1"
 _IMAGE_SIZES = {"1024x1024", "1792x1024", "1024x1792"}
 _OPENAI_IMAGE_SIZE = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")
 if _OPENAI_IMAGE_SIZE not in _IMAGE_SIZES:
-    raise ValueError(f"Invalid OPENAI_IMAGE_SIZE: {_OPENAI_IMAGE_SIZE}. Must be one of {_IMAGE_SIZES}")
+    error_msg = f"Invalid OPENAI_IMAGE_SIZE: {_OPENAI_IMAGE_SIZE}."
+    error_msg += f" Must be one of {_IMAGE_SIZES}"
+    raise ValueError(error_msg)
 OPENAI_IMAGE_SIZE: Final[str] = _OPENAI_IMAGE_SIZE
 
 # Validate and set image quality
 _IMAGE_QUALITIES = {"standard", "hd", "low"}
 _OPENAI_IMAGE_QUALITY = os.getenv("OPENAI_IMAGE_QUALITY", "low").lower()
 if _OPENAI_IMAGE_QUALITY not in _IMAGE_QUALITIES:
-    raise ValueError(f"Invalid OPENAI_IMAGE_QUALITY: {_OPENAI_IMAGE_QUALITY}. Must be one of {_IMAGE_QUALITIES}")
+    error_msg = f"Invalid OPENAI_IMAGE_QUALITY: {_OPENAI_IMAGE_QUALITY}."
+    error_msg += f" Must be one of {_IMAGE_QUALITIES}"
+    raise ValueError(error_msg)
 OPENAI_IMAGE_QUALITY: Final[str] = _OPENAI_IMAGE_QUALITY
 # Content Elements for Story Generation
 ANIMALS: Final[list[str]] = [

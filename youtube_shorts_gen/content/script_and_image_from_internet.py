@@ -3,9 +3,11 @@
 import base64
 import logging
 import random
-import re
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
+
+import nltk
+from nltk.tokenize import sent_tokenize
 
 from youtube_shorts_gen.scrapers.scraper_factory import ScraperFactory
 from youtube_shorts_gen.utils.config import (
@@ -16,10 +18,8 @@ from youtube_shorts_gen.utils.config import (
 )
 from youtube_shorts_gen.utils.openai_client import get_openai_client
 
-import nltk
-from nltk.tokenize import sent_tokenize
-
 nltk.download("punkt", quiet=True)
+
 
 class ScriptAndImageFromInternet:
     """Fetches short stories or content from the internet for YouTube shorts
@@ -41,7 +41,7 @@ class ScriptAndImageFromInternet:
         self.images_dir = self.run_dir / "images"
         self.images_dir.mkdir(parents=True, exist_ok=True)
 
-        # Default content source type
+        # Default content source type FIXME!
         self.source_type = "dogdrip"
 
     def _split_into_sentences(self, text: str) -> list[str]:
@@ -93,8 +93,19 @@ class ScriptAndImageFromInternet:
         image_path = self.images_dir / f"sentence_{index + 1}.png"
 
         try:
-            size_value: Literal["1024x1024", "1792x1024", "1024x1792"] = OPENAI_IMAGE_SIZE
-            quality_value: Literal["standard", "hd", "low"] = OPENAI_IMAGE_QUALITY
+            # Validate and safely assign Literal types
+            VALID_SIZES = ["1024x1024", "1792x1024", "1024x1792"]
+            VALID_QUALITIES = ["standard", "hd", "low"]
+
+            if OPENAI_IMAGE_SIZE not in VALID_SIZES:
+                raise ValueError(f"Invalid image size: {OPENAI_IMAGE_SIZE}")
+            if OPENAI_IMAGE_QUALITY not in VALID_QUALITIES:
+                raise ValueError(f"Invalid image quality: {OPENAI_IMAGE_QUALITY}")
+
+            size_value = cast(
+                Literal["1024x1024", "1792x1024", "1024x1792"], OPENAI_IMAGE_SIZE
+            )
+            quality_value = cast(Literal["standard", "hd", "low"], OPENAI_IMAGE_QUALITY)
 
             result = self.client.images.generate(
                 model=OPENAI_IMAGE_MODEL,

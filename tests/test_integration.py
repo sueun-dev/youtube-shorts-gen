@@ -55,23 +55,36 @@ class TestIntegration(unittest.TestCase):
         )
 
         # Verify the pipeline structure by checking for key components in the
-        # run_pipeline_once function
-        run_pipeline_source = inspect.getsource(main.run_pipeline_once)
+        # main module source (not just run_pipeline_once)
+        main_source = inspect.getsource(main)
 
-        # Check for calls to pipeline modules
-        self.assertIn("run_ai_content_pipeline", run_pipeline_source)
-        self.assertIn("run_internet_content_pipeline", run_pipeline_source)
-        self.assertIn("run_upload_pipeline", run_pipeline_source)
+        # Check for references/imports of pipeline modules
+        self.assertIn("run_ai_content_pipeline", main_source)
+        self.assertIn(
+            "run_internet_content_pipeline",
+            main_source,
+        )
+        self.assertIn("run_upload_pipeline", main_source)
 
         # Check for key pipeline flow elements
+        run_pipeline_source = inspect.getsource(main.run_pipeline_once)
         self.assertIn("content_result", run_pipeline_source)
-        self.assertIn("upload_result", run_pipeline_source)
-        self.assertIn("Choose content source", run_pipeline_source)
+        self.assertIn("_get_content_source_choice()", run_pipeline_source)
 
-        # Check for success handling
-        self.assertIn('content_result.get("success", False)', run_pipeline_source)
-        self.assertIn('upload_result.get("success", False)', run_pipeline_source)
-        self.assertIn("video_url", run_pipeline_source)
+        # Check for helper function calls which handle the pipeline logic
+        self.assertIn(
+            "_process_pipeline_output(content_result, run_dir)", run_pipeline_source
+        )
+
+        # Check success handling in the process pipeline output function
+        process_pipeline_source = inspect.getsource(main._process_pipeline_output)
+        self.assertIn(
+            "content_result.get(RESULT_KEY_SUCCESS, False)", process_pipeline_source
+        )
+        self.assertIn(
+            "upload_result.get(RESULT_KEY_SUCCESS, False)", process_pipeline_source
+        )
+        self.assertIn("RESULT_KEY_VIDEO_URL", process_pipeline_source)
 
         # Verify the main loop structure
         main_source = inspect.getsource(main)
