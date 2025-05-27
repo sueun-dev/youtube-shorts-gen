@@ -3,11 +3,8 @@
 import base64
 import logging
 import random
-import re
 from pathlib import Path
-
-import requests
-from bs4 import BeautifulSoup
+from typing import Literal
 
 from youtube_shorts_gen.utils.config import (
     IMAGE_PROMPT_TEMPLATE,
@@ -19,7 +16,9 @@ from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 
 class InternetContentFetcher:
-    """Fetches content from the internet, processes it with OpenAI, and generates images."""
+    """Fetches content from the internet, processes it with OpenAI, and generates
+    images.
+    """
 
     def __init__(self, run_dir: str):
         """Initialize the internet content fetcher.
@@ -35,18 +34,17 @@ class InternetContentFetcher:
         self.images_dir = self.run_dir / "images"
         self.images_dir.mkdir(exist_ok=True)
 
-        # Website URLs to fetch content from
-        self.websites = [
-            "https://gall.dcinside.com/board/lists/?id=dcbest",  # DCInside 베스트 갤러리
-            "https://gall.dcinside.com/board/lists/?id=hit",  # DCInside 힛갤러리
-            "https://gall.dcinside.com/board/lists/?id=issuezoom",  # DCInside 이슈줌
-        ]
+        # Default websites list - should be overridden by implementing classes
+        self.websites = []
 
         # Mapping file for paragraphs and images
         self.mapping_path = self.run_dir / "paragraph_image_mapping.txt"
 
-    def _fetch_popular_posts(self, website_url: str, limit: int = 5) -> list:
+    def _fetch_popular_posts(self, website_url: str, limit: int = 5) -> list[str]:
         """Fetch popular post URLs from a website.
+
+        This is a base implementation that should be overridden by subclasses for
+        specific websites.
 
         Args:
             website_url: URL of the website to fetch from
@@ -55,53 +53,16 @@ class InternetContentFetcher:
         Returns:
             List of post URLs
         """
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/91.0.4472.124 Safari/537.36"
-            )
-        }
-
-        try:
-            response = requests.get(website_url, headers=headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Find posts with high view counts or recommended counts
-            post_links = []
-            # Typical DCInside post row class
-            post_rows = soup.select(".gall_list .us-post")
-
-            for row in post_rows[: limit * 2]:  # Get more than needed to filter
-                try:
-                    # Check if it has high view count or recommendations
-                    view_count = int(row.select_one(".gall_count").text.strip())
-                    recommend_count = int(
-                        row.select_one(".gall_recommend").text.strip()
-                    )
-
-                    # Threshold for popularity
-                    if view_count > 1000 or recommend_count > 10:
-                        link_element = row.select_one(".gall_tit a")
-                        if link_element and "href" in link_element.attrs:
-                            post_url = (
-                                "https://gall.dcinside.com" + link_element["href"]
-                            )
-                            post_links.append(post_url)
-                except (AttributeError, ValueError):
-                    continue
-
-            # Limit the number of posts
-            return post_links[:limit]
-
-        except (requests.RequestException, ValueError) as e:
-            logging.warning("Error fetching from website: %s", e)
-            return []
+        logging.warning(
+            "Base _fetch_popular_posts called. This should be overridden by a subclass."
+        )
+        return []
 
     def _fetch_post_content(self, post_url: str) -> str:
         """Fetch the content of a post.
+
+        This is a base implementation that should be overridden by subclasses for
+        specific websites.
 
         Args:
             post_url: URL of the post to fetch
@@ -109,37 +70,10 @@ class InternetContentFetcher:
         Returns:
             Post content as text
         """
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/91.0.4472.124 Safari/537.36"
-            )
-        }
-
-        try:
-            response = requests.get(post_url, headers=headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Get post title
-            title_element = soup.select_one(".title_subject")
-            title = title_element.text.strip() if title_element else "Untitled Post"
-
-            # Get post content
-            content_element = soup.select_one(".writing_view_box")
-            content = content_element.text.strip() if content_element else ""
-
-            # Combine title and content
-            full_content = f"{title}\n\n{content}"
-
-            # Clean up the content (remove excessive whitespace, etc.)
-            return re.sub(r"\s+", " ", full_content).strip()
-
-        except (requests.RequestException, ValueError) as e:
-            logging.warning("Error fetching post content: %s", e)
-            return ""
+        logging.warning(
+            "Base _fetch_post_content called. This should be overridden by a subclass."
+        )
+        return ""
 
     def _summarize_and_split_content(self, content: str) -> list:
         """Summarize and split content into paragraphs using OpenAI.
@@ -218,11 +152,22 @@ class InternetContentFetcher:
         image_prompt = IMAGE_PROMPT_TEMPLATE.format(story=paragraph)
 
         try:
+            # Convert string constants to literal types expected by the OpenAI API
+            size_value: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024"
+            if OPENAI_IMAGE_SIZE == "1024x1024":
+                size_value = "1024x1024"
+            elif OPENAI_IMAGE_SIZE == "1792x1024":
+                size_value = "1792x1024"
+            elif OPENAI_IMAGE_SIZE == "1024x1792":
+                size_value = "1024x1792"
+
+            quality_value: Literal["standard", "hd", "low"] = "low"
+
             result = self.client.images.generate(
                 model=OPENAI_IMAGE_MODEL,
                 prompt=image_prompt,
-                size=OPENAI_IMAGE_SIZE,
-                quality="low",
+                size=size_value,
+                quality=quality_value,
                 n=1,
             )
 

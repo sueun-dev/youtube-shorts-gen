@@ -1,6 +1,7 @@
 import base64
 import logging
 from pathlib import Path
+from typing import Literal
 
 from openai import OpenAI  # Assuming OpenAI client is passed or initialized
 
@@ -42,17 +43,34 @@ class ImageGenerator:
         """
         # Construct a detailed image prompt, can be further customized
         # The original prompt was very specific, retaining its structure for now
-        detailed_prompt = f"Ultra-realistic cinematic photograph of {prompt}, captured with a full-frame DSLR camera, 85mm lens at f/1.4 aperture, golden hour lighting, shallow depth of field, high dynamic range, 8K resolution, natural color grading, film grain texture, --ar 16:9 --v 5"
+        detailed_prompt = (
+            f"Ultra-realistic cinematic photograph of {prompt}, captured with a "
+            f"full-frame DSLR camera, 85mm lens at f/1.4 aperture, "
+            f"golden hour lighting, "
+            f"shallow depth of field, high dynamic range, 8K resolution, natural color "
+            f"grading, film grain texture, --ar 16:9 --v 5"
+        )
 
         try:
             logging.info(
                 f"Generating image for prompt (index {index+1}): {prompt[:100]}..."
             )
+            # Convert string constants to literal types expected by the OpenAI API
+            size_value: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024"
+            if OPENAI_IMAGE_SIZE == "1024x1024":
+                size_value = "1024x1024"
+            elif OPENAI_IMAGE_SIZE == "1792x1024":
+                size_value = "1792x1024"
+            elif OPENAI_IMAGE_SIZE == "1024x1792":
+                size_value = "1024x1792"
+
+            quality_value: Literal["standard", "hd", "low"] = "standard"
+
             result = self.client.images.generate(
                 model=OPENAI_IMAGE_MODEL,
                 prompt=detailed_prompt,
-                size=OPENAI_IMAGE_SIZE,  # Ensure this is a valid size like "1024x1024"
-                quality="standard",  # Using 'standard' instead of 'low' for potentially better results
+                size=size_value,  # Using the properly typed literal value
+                quality=quality_value,  # Using the properly typed literal value
                 response_format="b64_json",  # Explicitly request b64_json
                 n=1,
             )
@@ -94,7 +112,8 @@ class ImageGenerator:
         """
         image_paths = []
         for i, prompt_text in enumerate(prompts):
-            # Use a cleaned-up version of the prompt text if it's very long for logging/display
+            # Use a cleaned-up version of the prompt text if it's very long for
+            # logging/display
             short_prompt_for_logging = (
                 (prompt_text[:70] + "...") if len(prompt_text) > 70 else prompt_text
             )

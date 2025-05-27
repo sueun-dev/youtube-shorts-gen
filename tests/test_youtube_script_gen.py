@@ -12,12 +12,12 @@ logging.basicConfig(level=logging.INFO, format=log_format)
 # Add the parent directory to the path to import the module
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Import the module under test - must come after sys.path adjustment
-from youtube_shorts_gen.content.script_and_image_gen import (
-    ScriptAndImageGenerator,  # noqa: E402
+from youtube_shorts_gen.content.script_and_image_gen import (  # noqa: E402
+    ScriptAndImageGenerator,
 )
 
 
+@patch("youtube_shorts_gen.content.script_and_image_gen.get_openai_client")
 class TestScriptAndImageGen(unittest.TestCase):
     """Test suite for YouTube script generator functions."""
 
@@ -46,12 +46,11 @@ class TestScriptAndImageGen(unittest.TestCase):
             # In a real scenario, we would remove files, but just log it
             logging.info(f"Would remove test directory: {self.test_run_dir}")
 
-    @patch("youtube_shorts_gen.content.script_and_image_gen.OpenAI")
-    def test_generate_story_and_image(self, mock_openai):
+    def test_generate_story_and_image(self, mock_get_client):
         """Test the generate_story_and_image function with mocked dependencies."""
         # Configure mocks
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Mock the chat completions response
         mock_chat_response = MagicMock()
@@ -76,12 +75,11 @@ class TestScriptAndImageGen(unittest.TestCase):
         # The current implementation uses Path.write_text and Path.write_bytes directly
         # instead of using open(), so we don't need to check file operations
 
-    @patch("youtube_shorts_gen.content.script_and_image_gen.OpenAI")
-    def test_error_handling(self, mock_openai):
+    def test_error_handling(self, mock_get_client):
         """Test error handling in the generate_story_and_image function."""
         # Configure mock to raise a specific exception
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
         # Using a more specific exception type for API issues
         error_msg = "API Connection Error"
         mock_client.chat.completions.create.side_effect = ConnectionError(error_msg)

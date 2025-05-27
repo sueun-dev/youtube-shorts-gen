@@ -36,19 +36,26 @@ class TestIntegration(unittest.TestCase):
 
         # Check for imports of key pipeline modules
         self.assertIn(
-            "from youtube_shorts_gen.pipelines.ai_content_pipeline import run_ai_content_pipeline",
+            "from youtube_shorts_gen.pipelines.ai_content_pipeline import "
+            "run_ai_content_pipeline",
             source,
         )
         self.assertIn(
-            "from youtube_shorts_gen.pipelines.internet_content_pipeline import run_internet_content_pipeline",
+            "from youtube_shorts_gen.pipelines.internet_content_pipeline import (",
             source,
         )
         self.assertIn(
-            "from youtube_shorts_gen.pipelines.upload_pipeline import run_upload_pipeline",
+            "run_internet_content_pipeline,",
+            source,
+        )
+        self.assertIn(
+            "from youtube_shorts_gen.pipelines.upload_pipeline import "
+            "run_upload_pipeline",
             source,
         )
 
-        # Verify the pipeline structure by checking for key components in the run_pipeline_once function
+        # Verify the pipeline structure by checking for key components in the
+        # run_pipeline_once function
         run_pipeline_source = inspect.getsource(main.run_pipeline_once)
 
         # Check for calls to pipeline modules
@@ -97,18 +104,20 @@ class TestIntegration(unittest.TestCase):
         mock_upload.return_value = "https://youtube.com/watch?v=test"
 
         # Run the pipeline
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("shutil.copy") as mock_copy:
-                from main import run_pipeline_once
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("shutil.copy") as mock_copy,
+        ):
+            from main import run_pipeline_once
 
-                run_pipeline_once()
+            run_pipeline_once()
 
-                # Assertions
-                mock_input.assert_called_once()
-                mock_script.assert_called_once()
-                mock_processor.assert_called_once()
-                mock_upload.assert_called_once()
-                mock_copy.assert_called_once()
+            # Assertions
+            mock_input.assert_called_once()
+            mock_script.assert_called_once()
+            mock_processor.assert_called_once()
+            mock_upload.assert_called_once()
+            mock_copy.assert_called_once()
 
 
 if __name__ == "__main__":

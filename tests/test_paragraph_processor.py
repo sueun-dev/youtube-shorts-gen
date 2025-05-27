@@ -57,7 +57,8 @@ class TestParagraphProcessor(unittest.TestCase):
 Sentence 1: The dragon snarled at the knight as she hid the princess behind her.
 Image: {self.test_run_dir}/images/sentence_1.png
 
-Sentence 2: Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! I GOT FULL CUSTODY IN THE DIVORCE!'
+Sentence 2: Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! 
+I GOT FULL CUSTODY IN THE DIVORCE!'
 Image: {self.test_run_dir}/images/sentence_2.png
 """
 
@@ -66,23 +67,26 @@ Image: {self.test_run_dir}/images/sentence_2.png
         # In real tests you would delete files, but we'll leave that out for safety
         pass
 
-    @patch("youtube_shorts_gen.media.paragraph_processor.OpenAI")
+    @patch("youtube_shorts_gen.media.paragraph_processor.get_openai_client")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch(
         "youtube_shorts_gen.media.text_processor.TextProcessor._extract_sentences_from_mapping_file"
     )
     def test_summarize_paragraphs_with_mapping_file(
-        self, mock_extract_sentences, mock_tts, mock_openai
+        self, mock_extract_sentences, mock_tts, mock_get_client
     ):
-        """Test that the TextProcessor correctly processes text segments from mapping file."""
+        """Test that the TextProcessor correctly processes text segments from
+        mapping file."""
+
         # Mock the OpenAI client
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Setup mock to return sentences from mapping file
         expected_sentences = [
             "The dragon snarled at the knight as she hid the princess behind her.",
-            "Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! I GOT FULL CUSTODY IN THE DIVORCE!'",
+            "Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! "
+            "I GOT FULL CUSTODY IN THE DIVORCE!'",
         ]
         mock_extract_sentences.return_value = expected_sentences
 
@@ -98,60 +102,58 @@ Image: {self.test_run_dir}/images/sentence_2.png
         processor = ParagraphProcessor(self.test_run_dir)
 
         # Mock _get_existing_image_paths to return test image paths
-        with patch.object(
-            processor,
-            "_get_existing_image_paths",
-            return_value=[
-                f"{self.test_run_dir}/images/sentence_1.png",
-                f"{self.test_run_dir}/images/sentence_2.png",
-            ],
-        ):
-            # Mock the get_content_segments method of TextProcessor
-            with patch.object(
+        with (
+            patch.object(
+                processor,
+                "_get_existing_image_paths",
+                return_value=[
+                    f"{self.test_run_dir}/images/sentence_1.png",
+                    f"{self.test_run_dir}/images/sentence_2.png",
+                ],
+            ),
+            patch.object(
                 processor.text_processor,
                 "get_content_segments",
                 return_value=expected_sentences,
-            ) as mock_get_segments:
-                # Mock video assembler methods
-                with patch.object(
-                    processor.video_assembler,
-                    "create_segment_video",
-                    side_effect=[
-                        f"{self.test_run_dir}/segments/segment_0.mp4",
-                        f"{self.test_run_dir}/segments/segment_1.mp4",
-                    ],
-                ):
-                    with patch.object(
-                        processor.video_assembler,
-                        "concatenate_segments",
-                        return_value=f"{self.test_run_dir}/output_story_video.mp4",
-                    ):
-                        # Call process method which will use text_processor
-                        result = processor.process(self.test_story)
+            ) as mock_get_segments,
+            patch.object(
+                processor.video_assembler,
+                "create_segment_video",
+                side_effect=[
+                    f"{self.test_run_dir}/segments/segment_0.mp4",
+                    f"{self.test_run_dir}/segments/segment_1.mp4",
+                ],
+            ),
+            patch.object(
+                processor.video_assembler,
+                "concatenate_segments",
+                return_value=f"{self.test_run_dir}/output_story_video.mp4",
+            ),
+        ):
+            # Call process method which will use text_processor
+            result = processor.process(self.test_story)
 
-                        # Verify the text processor was called with the story text
-                        mock_get_segments.assert_called_once_with(
-                            self.test_story, summarize_long_paragraphs=True
-                        )
+            # Verify the text processor was called with the story text
+            mock_get_segments.assert_called_once_with(
+                self.test_story, summarize_long_paragraphs=True
+            )
 
-                        # Verify we got the expected paragraphs in the result
-                        self.assertEqual(len(result["processed_paragraphs"]), 2)
-                        self.assertTrue(
-                            "dragon snarled" in result["processed_paragraphs"][0]
-                        )
+            # Verify we got the expected paragraphs in the result
+            self.assertEqual(len(result["processed_paragraphs"]), 2)
+            self.assertTrue("dragon snarled" in result["processed_paragraphs"][0])
 
-    @patch("youtube_shorts_gen.media.paragraph_processor.OpenAI")
+    @patch("youtube_shorts_gen.media.paragraph_processor.get_openai_client")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch(
         "youtube_shorts_gen.media.text_processor.TextProcessor._extract_sentences_from_mapping_file"
     )
     def test_summarize_paragraphs_without_mapping_file(
-        self, mock_extract_sentences, mock_tts, mock_openai
+        self, mock_extract_sentences, mock_tts, mock_get_client
     ):
         """Test that TextProcessor correctly splits text when no mapping file exists."""
         # Mock the OpenAI client
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Setup mock to return empty list (no mapping file)
         mock_extract_sentences.return_value = []
@@ -159,7 +161,9 @@ Image: {self.test_run_dir}/images/sentence_2.png
         # Expected paragraphs after text processing
         expected_paragraphs = [
             "The dragon snarled at the knight as she hid the princess behind her.",
-            "Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! I GOT FULL CUSTODY!'",
+            "Rearing her head back she let out a loud roar, 'FOR THE LAST TIME! "
+            "I GOT FULL "
+            "CUSTODY!'",
         ]
 
         # Mock the TTS generator to return audio paths
@@ -174,59 +178,55 @@ Image: {self.test_run_dir}/images/sentence_2.png
         processor = ParagraphProcessor(self.test_run_dir)
 
         # Mock _get_existing_image_paths to return test image paths
-        with patch.object(
-            processor,
-            "_get_existing_image_paths",
-            return_value=[
-                f"{self.test_run_dir}/images/sentence_1.png",
-                f"{self.test_run_dir}/images/sentence_2.png",
-            ],
-        ):
-            # Mock get_content_segments to return expected paragraphs
-            with patch.object(
+        with (
+            patch.object(
+                processor,
+                "_get_existing_image_paths",
+                return_value=[
+                    f"{self.test_run_dir}/images/sentence_1.png",
+                    f"{self.test_run_dir}/images/sentence_2.png",
+                ],
+            ),
+            patch.object(
                 processor.text_processor,
                 "get_content_segments",
                 return_value=expected_paragraphs,
-            ) as mock_get_segments:
-                # Mock video assembler methods
-                with patch.object(
-                    processor.video_assembler,
-                    "create_segment_video",
-                    side_effect=[
-                        f"{self.test_run_dir}/segments/segment_0.mp4",
-                        f"{self.test_run_dir}/segments/segment_1.mp4",
-                    ],
-                ):
-                    with patch.object(
-                        processor.video_assembler,
-                        "concatenate_segments",
-                        return_value=f"{self.test_run_dir}/output_story_video.mp4",
-                    ):
-                        # Call process method which will use text_processor
-                        result = processor.process(self.test_story)
+            ) as mock_get_segments,
+            patch.object(
+                processor.video_assembler,
+                "create_segment_video",
+                side_effect=[
+                    f"{self.test_run_dir}/segments/segment_0.mp4",
+                    f"{self.test_run_dir}/segments/segment_1.mp4",
+                ],
+            ),
+            patch.object(
+                processor.video_assembler,
+                "concatenate_segments",
+                return_value=f"{self.test_run_dir}/output_story_video.mp4",
+            ),
+        ):
+            # Call process method which will use text_processor
+            result = processor.process(self.test_story)
 
-                        # Verify the text processor was called with the story text
-                        mock_get_segments.assert_called_once_with(
-                            self.test_story, summarize_long_paragraphs=True
-                        )
+            # Verify the text processor was called with the story text
+            mock_get_segments.assert_called_once_with(
+                self.test_story, summarize_long_paragraphs=True
+            )
 
-                        # Verify we got the expected paragraphs in the result
-                        self.assertEqual(len(result["processed_paragraphs"]), 2)
-                        self.assertTrue(
-                            "dragon snarled" in result["processed_paragraphs"][0]
-                        )
-                        self.assertTrue(
-                            "FOR THE LAST TIME" in result["processed_paragraphs"][1]
-                        )
+            # Verify we got the expected paragraphs in the result
+            self.assertEqual(len(result["processed_paragraphs"]), 2)
+            self.assertTrue("dragon snarled" in result["processed_paragraphs"][0])
+            self.assertTrue("FOR THE LAST TIME" in result["processed_paragraphs"][1])
 
-    @patch("youtube_shorts_gen.media.paragraph_processor.OpenAI")
+    @patch("youtube_shorts_gen.media.paragraph_processor.get_openai_client")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
-    def test_process_uses_all_images(self, mock_subprocess, mock_tts, mock_openai):
+    def test_process_uses_all_images(self, mock_subprocess, mock_tts, mock_get_client):
         """Test that the process method uses all available images."""
         # Mock the OpenAI client
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Mock the TTS generator
         mock_tts_instance = MagicMock()
@@ -259,51 +259,59 @@ Image: {self.test_run_dir}/images/sentence_2.png
             processor = ParagraphProcessor(self.test_run_dir)
 
             # Mock text processor to return expected paragraphs
-            with patch.object(
-                processor.text_processor,
-                "get_content_segments",
-                return_value=expected_paragraphs,
-            ):
-                # Mock video assembler to return test segment paths
-                with patch.object(
+            with (
+                patch.object(
+                    processor.text_processor,
+                    "get_content_segments",
+                    return_value=expected_paragraphs,
+                ),
+                patch.object(
+                    processor.text_processor,
+                    "get_content_segments",
+                    return_value=expected_paragraphs,
+                ),
+                patch.object(
                     processor.video_assembler, "create_segment_video"
-                ) as mock_create_segment:
-                    mock_create_segment.side_effect = [
-                        f"{self.test_run_dir}/segments/segment_0.mp4",
-                        f"{self.test_run_dir}/segments/segment_1.mp4",
-                    ]
+                ) as mock_create_segment,
+            ):
+                mock_create_segment.side_effect = [
+                    f"{self.test_run_dir}/segments/segment_0.mp4",
+                    f"{self.test_run_dir}/segments/segment_1.mp4",
+                ]
 
-                    # Mock concatenate_segments to return final video path
-                    with patch.object(
-                        processor.video_assembler,
-                        "concatenate_segments",
-                        return_value=f"{self.test_run_dir}/output_story_video.mp4",
-                    ):
-                        # Run the process method
-                        result = processor.process(self.test_story)
+                # Mock concatenate_segments to return final video path
+                with patch.object(
+                    processor.video_assembler,
+                    "concatenate_segments",
+                    return_value=f"{self.test_run_dir}/output_story_video.mp4",
+                ):
+                    # Run the process method
+                    result = processor.process(self.test_story)
 
-                        # Check that create_segment_video was called for each image
-                        self.assertEqual(mock_create_segment.call_count, 2)
+                    # Check that create_segment_video was called for each image
+                    self.assertEqual(mock_create_segment.call_count, 2)
 
-                        # Verify the result contains the right number of segments
-                        self.assertEqual(len(result["segment_paths"]), 2)
+                    # Verify the result contains the right number of segments
+                    self.assertEqual(len(result["segment_paths"]), 2)
 
-                        # Verify the text segments were processed correctly
-                        self.assertEqual(len(result["processed_paragraphs"]), 2)
-                        self.assertTrue(
-                            "dragon snarled" in result["processed_paragraphs"][0]
-                        )
+                    # Verify the text segments were processed correctly
+                    self.assertEqual(len(result["processed_paragraphs"]), 2)
+                    self.assertTrue(
+                        "dragon snarled" in result["processed_paragraphs"][0]
+                    )
 
-    @patch("youtube_shorts_gen.media.paragraph_processor.OpenAI")
+    @patch("youtube_shorts_gen.media.paragraph_processor.get_openai_client")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
     def test_process_handles_mismatched_paragraph_image_counts(
-        self, mock_subprocess, mock_tts, mock_openai
+        self, mock_subprocess, mock_tts, mock_get_client
     ):
-        """Test that the process method handles when paragraph and image counts don't match."""
+        """Test that the process method handles when paragraph and image counts
+        don't match."""
+
         # Mock the OpenAI client
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Expected paragraphs after text processing (more than images)
         expected_paragraphs = [
@@ -337,41 +345,40 @@ Image: {self.test_run_dir}/images/sentence_2.png
             processor = ParagraphProcessor(self.test_run_dir)
 
             # Mock text processor to return expected paragraphs (more than images)
-            with patch.object(
-                processor.text_processor,
-                "get_content_segments",
-                return_value=expected_paragraphs,
-            ):
-                # Mock video assembler to return test segment paths
-                with patch.object(
+            with (
+                patch.object(
+                    processor.text_processor,
+                    "get_content_segments",
+                    return_value=expected_paragraphs,
+                ),
+                patch.object(
                     processor.video_assembler, "create_segment_video"
-                ) as mock_create_segment:
-                    mock_create_segment.side_effect = [
-                        f"{self.test_run_dir}/segments/segment_0.mp4",
-                        f"{self.test_run_dir}/segments/segment_1.mp4",
-                    ]
+                ) as mock_create_segment,
+            ):
+                mock_create_segment.side_effect = [
+                    f"{self.test_run_dir}/segments/segment_0.mp4",
+                    f"{self.test_run_dir}/segments/segment_1.mp4",
+                ]
 
-                    # Mock concatenate_segments to return final video path
-                    with patch.object(
-                        processor.video_assembler,
-                        "concatenate_segments",
-                        return_value=f"{self.test_run_dir}/output_story_video.mp4",
-                    ):
-                        # Run the process method
-                        result = processor.process(self.test_story)
+                # Mock concatenate_segments to return final video path
+                with patch.object(
+                    processor.video_assembler,
+                    "concatenate_segments",
+                    return_value=f"{self.test_run_dir}/output_story_video.mp4",
+                ):
+                    # Run the process method
+                    result = processor.process(self.test_story)
 
-                        # We should only create as many segments as we have images
-                        self.assertEqual(mock_create_segment.call_count, 2)
+                    # We should only create as many segments as we have images
+                    self.assertEqual(mock_create_segment.call_count, 2)
 
-                        # Verify the result contains the right number of segments (limited by image count)
-                        self.assertEqual(len(result["segment_paths"]), 2)
+                    # Verify the result contains the right number of segments
+                    # (limited by image count)
+                    self.assertEqual(len(result["segment_paths"]), 2)
 
-                        # Verify we only used as many paragraphs as we had images
-                        self.assertEqual(len(result["processed_paragraphs"]), 2)
+                    # Verify we only used as many paragraphs as we had images
+                    self.assertEqual(len(result["processed_paragraphs"]), 2)
 
 
 if __name__ == "__main__":
-    # Add import that's only needed in this section
-    import base64
-
     unittest.main()

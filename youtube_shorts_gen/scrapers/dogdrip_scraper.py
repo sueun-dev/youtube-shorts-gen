@@ -40,8 +40,10 @@ class DogdripScraper(ContentScraper):
         post_items = []
         for a in soup.select("td.title a.link-reset[data-document-srl]"):
             href = a.get("href")
-            if not href or "/doc/" not in href:
+            # Ensure href is a string before using it
+            if not href or not isinstance(href, str) or "/doc/" not in href:
                 continue
+            # Now href is guaranteed to be a string for urljoin
             full_url = urljoin(self.url, href)
             title_span = a.select_one("span.ed.title-link")
             title_text = title_span.get_text(strip=True) if title_span else ""
