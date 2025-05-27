@@ -32,15 +32,15 @@ def run_upload_pipeline(run_dir: str) -> dict:
                 "video_url": video_url,
                 "final_video_path": final_video_path,
             }
-        else:
-            logging.info(
-                "[Upload Pipeline] Video not uploaded to YouTube: %s", final_video_path
-            )
-            return {
-                "success": False,
-                "error": "Upload failed but no exception was raised",
-                "final_video_path": final_video_path,
-            }
+
+        logging.info(
+            "[Upload Pipeline] Video not uploaded to YouTube: %s", final_video_path
+        )
+        return {
+            "success": False,
+            "error": "Upload failed but no exception was raised",
+            "final_video_path": final_video_path,
+        }
     except Exception as e:
         logging.exception("[Upload Pipeline] Failed: %s", e)
         return {"success": False, "error": str(e)}

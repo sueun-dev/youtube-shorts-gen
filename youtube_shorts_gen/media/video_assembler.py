@@ -56,13 +56,15 @@ class VideoAssembler:
         index: int,
         target_resolution: tuple[int, int] = (1080, 1920),
     ) -> str:
-        """Create a video segment from an image and audio file, scaled and padded for shorts.
+        """Create a video segment from an image and audio file, scaled and padded
+        for shorts.
 
         Args:
             image_path: Path to the image file.
             audio_path: Path to the audio file.
             index: The segment index (for filename).
-            target_resolution: Target video resolution (width, height) for YouTube Shorts.
+            target_resolution: Target video resolution (width, height) for
+                YouTube Shorts.
 
         Returns:
             Path to the created video segment, or empty string if failed.
@@ -79,17 +81,21 @@ class VideoAssembler:
 
         if duration <= 0:
             logging.error(
-                f"Audio duration is invalid for {audio_path}, cannot create segment {index+1}."
+                f"Audio duration is invalid for {audio_path},"
+                f"cannot create segment {index+1}."
             )
             return ""
 
         target_w, target_h = target_resolution
 
         # FFmpeg command to scale, pad, and combine image and audio
-        # This command creates a 9:16 video. It scales the image to fit within 1080 width,
-        # then pads the height to 1920 if necessary, or scales to fit 1920 height and pads width.
-        # It prioritizes fitting the width and then padding vertically (black bars top/bottom if landscape image).
-        # For portrait images, it will fit height and pad horizontally (black bars left/right).
+        # This command creates a 9:16 video. It scales the image to fit within 1080
+        # width, then pads the height to 1920 if necessary, or scales to fit 1920
+        # width.
+        # It prioritizes fitting the width and then padding vertically (black bars
+        # if landscape image).
+        # For portrait images, it will fit height and pad horizontally (bars
+        # left/right).
         ffmpeg_command = [
             "ffmpeg",
             "-y",
@@ -111,7 +117,7 @@ class VideoAssembler:
             "yuv420p",
             "-vf",
             f"scale=w='min(iw*min(1,min({target_w}/iw,{target_h}/ih)),{target_w})':h='min(ih*min(1,min({target_w}/iw,{target_h}/ih)),{target_h})':force_original_aspect_ratio=decrease,pad=w={target_w}:h={target_h}:x=({target_w}-iw)/2:y=({target_h}-ih)/2:color=black",
-            "-shortest",  # Finish encoding when the shortest input stream ends (the audio)
+            "-shortest",  # End encoding when shortest input stream ends
             "-t",
             str(duration),  # Set duration explicitly
             str(output_path),
@@ -119,7 +125,8 @@ class VideoAssembler:
 
         try:
             logging.info(
-                f"Creating video segment {index + 1} with duration {duration}s: {output_path}"
+                f"Creating video segment {index + 1} with duration {duration}s:"
+                f"{output_path}"
             )
             subprocess.run(
                 ffmpeg_command, check=True, capture_output=True, text=True, timeout=60
@@ -203,12 +210,13 @@ class VideoAssembler:
             return ""
         except subprocess.CalledProcessError as e:
             logging.error(f"Error concatenating video segments: {e.stderr}")
-            # Fallback: if concatenation fails, and there's only one valid segment, copy it.
+            # Fallback: if concatenation fails with only one valid segment, copy it.
             if len(valid_segment_paths) == 1:
                 try:
                     shutil.copy(valid_segment_paths[0], final_video_path)
                     logging.info(
-                        f"Fallback: Copied single segment {valid_segment_paths[0]} as final video {final_video_path}"
+                        f"Fallback: Copied single segment {valid_segment_paths[0]}"
+                        f"as final video {final_video_path}"
                     )
                     return str(final_video_path)
                 except Exception as copy_err:
@@ -238,7 +246,8 @@ class VideoAssembler:
             return ""
         if len(image_paths) != len(audio_paths):
             logging.error(
-                f"Mismatch between number of images ({len(image_paths)}) and audio files ({len(audio_paths)})."
+                f"Mismatch between number of images ({len(image_paths)})"
+                f"and audio files ({len(audio_paths)})."
             )
             return ""
 
@@ -249,7 +258,8 @@ class VideoAssembler:
             image_p = image_paths[i]
             audio_p = audio_paths[i]
             logging.info(
-                f"Creating segment {i+1}/{num_segments_to_create} with image '{Path(image_p).name}' and audio '{Path(audio_p).name}'"
+                f"Creating segment {i+1}/{num_segments_to_create}"
+                f"with image '{Path(image_p).name}' and audio '{Path(audio_p).name}'"
             )
             segment_path = self.create_segment_video(
                 image_p, audio_p, i, target_resolution
@@ -258,12 +268,14 @@ class VideoAssembler:
                 segment_video_paths.append(segment_path)
             else:
                 logging.warning(
-                    f"Failed to create video segment for image {i+1} and audio {i+1}. Skipping."
+                    f"Failed to create video segment for image {i+1}"
+                    f"and audio {i+1}. Skipping."
                 )
 
         if not segment_video_paths:
             logging.error(
-                "No video segments were successfully created. Cannot assemble final video."
+                "No video segments were successfully created."
+                "Cannot assemble final video."
             )
             return ""
 

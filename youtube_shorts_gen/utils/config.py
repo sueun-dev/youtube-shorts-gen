@@ -20,8 +20,20 @@ RUNWAY_API_KEY: Final[str] = os.getenv("RUNWAY_API_KEY", "")
 # Model Configuration
 OPENAI_CHAT_MODEL: Final[str] = "gpt-4o-mini-2024-07-18"
 OPENAI_IMAGE_MODEL: Final[str] = "gpt-image-1"
-OPENAI_IMAGE_SIZE: Final[str] = "1024x1024"
-OPENAI_IMAGE_QUALITY: Final[str] = "low"
+
+# Validate and set image size
+_IMAGE_SIZES = {"1024x1024", "1792x1024", "1024x1792"}
+_OPENAI_IMAGE_SIZE = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")
+if _OPENAI_IMAGE_SIZE not in _IMAGE_SIZES:
+    raise ValueError(f"Invalid OPENAI_IMAGE_SIZE: {_OPENAI_IMAGE_SIZE}. Must be one of {_IMAGE_SIZES}")
+OPENAI_IMAGE_SIZE: Final[str] = _OPENAI_IMAGE_SIZE
+
+# Validate and set image quality
+_IMAGE_QUALITIES = {"standard", "hd", "low"}
+_OPENAI_IMAGE_QUALITY = os.getenv("OPENAI_IMAGE_QUALITY", "low").lower()
+if _OPENAI_IMAGE_QUALITY not in _IMAGE_QUALITIES:
+    raise ValueError(f"Invalid OPENAI_IMAGE_QUALITY: {_OPENAI_IMAGE_QUALITY}. Must be one of {_IMAGE_QUALITIES}")
+OPENAI_IMAGE_QUALITY: Final[str] = _OPENAI_IMAGE_QUALITY
 # Content Elements for Story Generation
 ANIMALS: Final[list[str]] = [
     "Cat",

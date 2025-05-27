@@ -1,6 +1,5 @@
 """Factory for creating content scrapers."""
 
-
 from youtube_shorts_gen.scrapers.base_scraper import ContentScraper
 from youtube_shorts_gen.scrapers.dogdrip_scraper import DogdripScraper
 

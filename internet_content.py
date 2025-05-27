@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """
 Entry point for Internet content generation pipeline.
-This script runs only the Internet content generation part of the YouTube Shorts Generator.
+This script runs only the Internet content generation part of the
+YouTube Shorts Generator.
 """
 
 import logging

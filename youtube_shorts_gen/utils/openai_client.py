@@ -4,7 +4,6 @@ This module provides a centralized OpenAI client instance that can be used
 throughout the codebase to avoid creating multiple client instances.
 """
 
-
 from openai import OpenAI
 
 from youtube_shorts_gen.utils.config import OPENAI_API_KEY

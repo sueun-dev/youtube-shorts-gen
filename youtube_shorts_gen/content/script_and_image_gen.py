@@ -1,6 +1,7 @@
 import base64
 import logging
 from pathlib import Path
+from typing import Literal
 
 from youtube_shorts_gen.content.story_prompt_gen import generate_dynamic_prompt
 from youtube_shorts_gen.utils.config import (
@@ -75,11 +76,22 @@ class ScriptAndImageGenerator:
         """
         image_prompt = IMAGE_PROMPT_TEMPLATE.format(story=story)
 
+        # Convert string constants to literal types expected by the OpenAI API
+        size_value: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024"
+        if OPENAI_IMAGE_SIZE == "1024x1024":
+            size_value = "1024x1024"
+        elif OPENAI_IMAGE_SIZE == "1792x1024":
+            size_value = "1792x1024"
+        elif OPENAI_IMAGE_SIZE == "1024x1792":
+            size_value = "1024x1792"
+
+        quality_value: Literal["standard", "hd", "low"] = "low"
+
         result = self.client.images.generate(
             model=OPENAI_IMAGE_MODEL,
             prompt=image_prompt,
-            size=OPENAI_IMAGE_SIZE,
-            quality="low",
+            size=size_value,
+            quality=quality_value,
             n=1,
         )
 

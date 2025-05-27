@@ -68,12 +68,8 @@ class UploadHistory:
         """
         history = self.load_history()
 
-        # Check if the title exists in the history
-        for upload in history["uploads"]:
-            if upload["title"] == title:
-                return True
-
-        return False
+        # Check if the title exists in the history using any() expression
+        return any(upload["title"] == title for upload in history["uploads"])
 
     def add_upload(self, title: str, video_url: str, story_content: str) -> None:
         """Add a new upload to the history.
