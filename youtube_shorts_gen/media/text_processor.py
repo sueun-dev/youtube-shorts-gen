@@ -115,6 +115,7 @@ class TextProcessor:
                 f"Paragraph {index+1} is long ({len(paragraph)} chars),"
                 f"attempting summarization."
             )
+            # FIXME!
             response = self.client.chat.completions.create(
                 model=OPENAI_CHAT_MODEL,
                 messages=[
@@ -177,9 +178,7 @@ class TextProcessor:
 
         segments = self._split_text(text, strategy="paragraphs")
 
-        if not segments or (
-            len(segments) == 1 and len(segments[0]) > 500
-        ):
+        if not segments or (len(segments) == 1 and len(segments[0]) > 500):
             logging.info(
                 "Initial paragraph split resulted in one large segment or no segments."
                 "Trying sentence splitting."

@@ -43,13 +43,25 @@ class ParagraphProcessor:
             logging.warning(f"Images directory not found: {self.images_dir}")
             return []
 
-        exts = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.PNG", "*.JPG", "*.JPEG", "*.WEBP"]
+        exts = [
+            "*.png",
+            "*.jpg",
+            "*.jpeg",
+            "*.webp",
+            "*.PNG",
+            "*.JPG",
+            "*.JPEG",
+            "*.WEBP",
+        ]
         image_paths = []
         for ext in exts:
             image_paths.extend(self.images_dir.glob(ext))
 
-        image_paths = sorted(set(str(p) for p in image_paths))
-        logging.info(f"Found {len(image_paths)} existing images in {self.images_dir} (png, jpg, jpeg, webp)")
+        image_paths = sorted({str(p) for p in image_paths})
+        logging.info(
+            f"Found {len(image_paths)} existing images in {self.images_dir} "
+            "(png, jpg, jpeg, webp)"
+        )
         return image_paths
 
     def _write_mapping_file(
