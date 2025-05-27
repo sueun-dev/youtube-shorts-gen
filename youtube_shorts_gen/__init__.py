@@ -9,7 +9,6 @@ __all__ = [
     "VideoGenerator",
     "VideoAudioSyncer",
     "TTSGenerator",
-    "NewVideoAudioSyncer",
     # Upload module exports
     "UploadHistory",
     "YouTubeUploader",
@@ -39,19 +38,13 @@ from youtube_shorts_gen.content.script_and_image_from_internet import (
 )
 from youtube_shorts_gen.content.script_and_image_gen import ScriptAndImageGenerator
 from youtube_shorts_gen.content.story_prompt_gen import generate_dynamic_prompt
-
 from youtube_shorts_gen.media.paragraph_processor import ParagraphProcessor
 from youtube_shorts_gen.media.paragraph_tts import ParagraphTTS
 from youtube_shorts_gen.media.runway import VideoGenerator
-from youtube_shorts_gen.media.sync_video_with_tts import VideoAudioSyncer
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
-from youtube_shorts_gen.media.video_audio_sync import (
-    VideoAudioSyncer as NewVideoAudioSyncer,
-)
-
+from youtube_shorts_gen.media.video_audio_sync import VideoAudioSyncer
 from youtube_shorts_gen.upload.upload_history import UploadHistory
 from youtube_shorts_gen.upload.upload_to_youtube import YouTubeUploader
-
 from youtube_shorts_gen.utils.config import (
     ACTIONS,
     ANIMALS,

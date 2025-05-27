@@ -1,134 +1,90 @@
-# YouTube Shorts 생성기
+# YouTube Shorts 자동 생성기
 
-AI를 활용하여 YouTube Shorts 비디오를 자동으로 생성하고 업로드하는 파이프라인입니다.
+인공지능과 인터넷 콘텐츠를 활용하여 YouTube Shorts 비디오를 자동으로 생성하고 업로드하는 프로그램입니다.
 
-## 기능
+## 주요 기능
 
-- OpenAI API를 사용한 스토리 생성
-- 인터넷 검색을 활용한 스토리 생성
-- DALL-E를 통한 이미지 생성
-- Runway ML을 사용한 비디오 생성
-- 텍스트-음성 변환(TTS) 및 비디오 동기화
-- 단락별 이미지-오디오 동기화
-- YouTube 자동 업로드
+- AI로 스토리와 이미지 생성 또는 인터넷에서 콘텐츠 수집
+- 이미지와 음성을 결합한 YouTube Shorts 비디오 제작
+- 완성된 비디오를 YouTube에 자동 업로드
 
 ## 설치 방법
 
-### 필수 요구 사항
+### 필요한 것들
 
-- Python 3.10+
-- FFmpeg (비디오/오디오 처리)
-- API 키: OpenAI, Runway ML
-- YouTube API 인증 정보 (업로드 기능 사용 시)
-- BeautifulSoup4 (인터넷 콘텐츠 스크래핑)
+- Python 3.10 이상
+- FFmpeg
+- API 키들:
+  - OpenAI API 키
+  - Runway ML API 키
+  - YouTube API 인증 정보
 
-### 설치 단계
+### 설치 과정
 
-1. 저장소 클론:
+1. 저장소 클론 및 이동:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/사용자명/youtube-shorts.git
    cd youtube-shorts
    ```
 
-2. 의존성 설치:
-   ```bash
-   pip install -e .
-   ```
-   또는 Poetry 사용 시:
+2. 패키지 설치:
    ```bash
    poetry install
    poetry shell
    ```
 
-3. 환경 설정:
-   `.env` 파일 생성 및 API 키 설정:
+3. API 키 설정:
+   - `.env` 파일 생성:
    ```
    OPENAI_API_KEY=your_openai_api_key
    RUNWAY_API_KEY=your_runway_api_key
    ```
 
-4. YouTube 업로드 설정 (선택 사항):
-   - `client_secrets_template.json`을 `client_secrets.json`으로 복사
-   - [Google Cloud Console](https://console.cloud.google.com)에서 프로젝트 생성
-   - YouTube Data API v3 활성화 및 OAuth 2.0 인증 정보 획득
-   - 인증 정보를 `client_secrets.json`에 입력
+4. YouTube 업로드 설정:
+   - Google Cloud Console에서 YouTube Data API v3 활성화
+   - OAuth 2.0 인증 정보를 `client_secrets.json`에 저장
 
 ## 실행 방법
 
-단일 실행:
+1. 프로그램 실행:
+   ```bash
+   python main.py
+   ```
+   또는 Poetry 사용 시:
+   ```bash
+   poetry run python main.py
+   ```
 
-```bash
-python main.py
-```
+2. 콘텐츠 생성 선택:
+   - 프로그램이 시작되면 두 가지 옵션 중 하나를 선택해야 합니다:
+     - `1`: AI가 새로운 스토리 생성
+     - `2`: 인터넷에서 콘텐츠 가져오기
 
-첫 YouTube 업로드 시 Google 인증 창이 열립니다. 인증 후에는 자동으로 진행됩니다.
+3. 자동 처리:
+   - 선택한 옵션에 따라 자동으로 다음 과정이 진행됩니다:
+     - 이미지 생성
+     - 음성 생성
+     - 비디오 생성
+     - YouTube 업로드 (설정된 경우)
 
-## 작동 방식
-
-프로그램은 콘텐츠 소스에 따라 다음 단계로 실행됩니다:
-
-### AI 생성 파이프라인
-1. 스토리 텍스트 생성 (OpenAI)
-2. 스토리 기반 이미지 생성 (DALL-E)
-3. 이미지 기반 비디오 생성 (Runway ML)
-4. 오디오와 비디오 동기화
-5. YouTube 업로드 (설정된 경우)
-
-### 인터넷 검색 파이프라인
-1. 인터넷에서 인기 있는 포스트 가져오기
-2. 콘텐츠 요약 및 단락 분할 (OpenAI)
-3. 각 단락에 대한 이미지 생성 (DALL-E)
-4. 각 단락에 대한 TTS 오디오 생성
-5. 단락별 이미지-오디오 동기화 및 비디오 생성
-6. 모든 단락 비디오 결합
-7. YouTube 업로드 (설정된 경우)
-
-Google API를 사용하여 최종 비디오를 YouTube에 자동으로 업로드합니다.
+4. 처음 실행 시 주의사항:
+   - YouTube 업로드 시에는 Google 계정 인증 창이 나타납니다.
+   - FFmpeg가 설치되어 있는지 확인하세요.
 
 ## 출력 파일
 
-모든 실행은 타임스탬프 폴더에 저장됩니다 (`runs/YYYY-MM-DD_HH-MM-SS/`):
+프로그램이 실행되면 `runs/` 폴더 안에 날짜와 시간으로 된 폴더가 생성됩니다 (예: `runs/2025-05-27_15-22-53/`).
 
-### AI 생성 파이프라인
-- `story_prompt.txt`: 생성된 스토리 텍스트
-- `story_image.png`: 생성된 이미지
-- `story_video.mp4`: Runway로 생성된 비디오
-- `final_story_video.mp4`: 오디오가 포함된 최종 비디오
+- AI 옵션 선택 시: 최종적으로 `final_story_video.mp4` 파일이 생성됩니다.
+- 인터넷 옵션 선택 시: 이미지, 오디오, 비디오가 각각 생성되고 최종적으로 `final_story_video.mp4` 파일이 생성됩니다.
 
-### 인터넷 검색 파이프라인
-- `story_prompt.txt`: 생성된 스토리 텍스트
-- `paragraph_image_mapping.txt`: 단락과 이미지 매핑 정보
-- `images/`: 각 단락에 대한 이미지 폴더
-- `audio/`: 각 단락에 대한 TTS 오디오 폴더
-- `paragraph_videos/`: 각 단락에 대한 비디오 폴더
-- `final_story_video.mp4`: 모든 단락 비디오가 결합된 최종 비디오
+## 자주 발생하는 문제 해결
 
-## 문제 해결
+- **API 키 오류**: `.env` 파일에 유효한 API 키가 있는지 확인하세요.
+- **FFmpeg 오류**: 시스템에 FFmpeg가 설치되어 있는지 확인하세요.
+- **YouTube 업로드 오류**: `client_secrets.json` 파일이 올바른지 확인하세요.
 
-주요 오류 해결:
+## 관련 정보
 
-- **API 키**: `.env` 파일에 유효한 API 키 확인
-- **FFmpeg**: 시스템에 FFmpeg 설치 여부 확인
-- **디렉토리**: `runs` 디렉토리가 자동으로 생성되지 않은 경우 수동으로 생성
-- **Google 인증**: `client_secrets.json` 파일 가용성 및 형식 확인
-
-로그는 콘솔에 출력되며 오류 메시지를 확인하여 문제를 해결할 수 있습니다.
-
-## 주의사항
-
-- API 키를 안전하게 관리하세요
-- API 사용량 및 비용에 주의하세요
-- YouTube 업로드 시 저작권 및 커뮤니티 가이드라인을 준수하세요
-
-## 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
-
-
-## 구현된 기능
-
-1. 문장별로 분리하여 각 문장에 대한 이미지 생성 (GPT Image 사용) - ✅ 완료
-2. TTS(Text-to-Speech) 기능 추가 - ✅ 완료
-3. 문장별 이미지 표시 및 TTS와 동기화 - ✅ 완료
-4. 인터넷 콘텐츠 스크래핑 및 처리 - ✅ 완료
-6. 단락별 이미지-오디오 동기화 - ✅ 완료
+- OpenAI와 Runway ML API는 사용량에 따라 비용이 발생할 수 있습니다.
+- 리넩스에서는 FFmpeg 설치를 위해 `apt-get install ffmpeg`를 실행하세요.

@@ -112,7 +112,7 @@ class VideoGenerator:
         # Convert image to data URI
         image_data_uri = self._image_to_data_uri(str(image_path))
 
-        # Send request to RunwayML
+        # FIXME! Send request to RunwayML
         response = self.client.image_to_video.create(
             model="gen3a_turbo",
             prompt_image=image_data_uri,

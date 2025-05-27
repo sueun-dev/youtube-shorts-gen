@@ -147,8 +147,16 @@ Image: {self.test_run_dir}/images/sentence_2.png
     )
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
+    @patch(
+        "youtube_shorts_gen.content.script_and_image_from_internet.ScraperFactory.get_scraper"
+    )
     def test_end_to_end_content_to_video_pipeline(
-        self, mock_subprocess, mock_tts, mock_get_client, mock_requests
+        self,
+        mock_get_scraper,
+        mock_subprocess,
+        mock_tts,
+        mock_get_client,
+        mock_requests,
     ):
         """Test the end-to-end pipeline from internet content to video creation."""
         # Mock requests for internet content
@@ -164,6 +172,12 @@ Image: {self.test_run_dir}/images/sentence_2.png
 
         # Configure mock to return different responses for different URLs
         mock_requests.side_effect = [main_page_response, post_page_response]
+
+        # Patch ScraperFactory.get_scraper to return a mock scraper
+        # with fetch_content returning a non-empty list
+        mock_scraper = MagicMock()
+        mock_scraper.fetch_content.return_value = [self.test_story]
+        mock_get_scraper.return_value = mock_scraper
 
         # Mock OpenAI responses for image generation
         mock_client = MagicMock()
