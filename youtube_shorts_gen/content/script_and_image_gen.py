@@ -1,20 +1,21 @@
-import base64
 import logging
 from pathlib import Path
-from typing import Literal
+
+from openai import OpenAI
 
 from youtube_shorts_gen.content.story_prompt_gen import generate_dynamic_prompt
 from youtube_shorts_gen.utils.config import (
     IMAGE_PROMPT_TEMPLATE,
     OPENAI_CHAT_MODEL,
-    OPENAI_IMAGE_MODEL,
-    OPENAI_IMAGE_SIZE,
 )
-from youtube_shorts_gen.utils.openai_client import get_openai_client
+from youtube_shorts_gen.utils.openai_image import (
+    generate_image as generate_openai_image,
+)
 
 
 class ScriptAndImageGenerator:
-    def __init__(self, run_dir: str, temperature: float = 0.9, max_tokens: int = 300):
+    def __init__(self, run_dir: str, client: OpenAI, 
+                 temperature: float = 0.9, max_tokens: int = 300):
         """Initialize the script generator with configuration parameters.
 
         Args:
@@ -23,7 +24,7 @@ class ScriptAndImageGenerator:
             max_tokens: Maximum length of generated text
         """
         self.run_dir = Path(run_dir)
-        self.client = get_openai_client()
+        self.client = client
         self.prompt_path = self.run_dir / "story_prompt.txt"
         self.image_path = self.run_dir / "story_image.png"
         self.temperature = temperature
@@ -72,38 +73,15 @@ class ScriptAndImageGenerator:
             story: The story text to base the image on
 
         Raises:
-            ValueError: If the API response is invalid or empty
+            ValueError: If the image generation fails
         """
         image_prompt = IMAGE_PROMPT_TEMPLATE.format(story=story)
 
-        # Convert string constants to literal types expected by the OpenAI API
-        size_value: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024"
-        if OPENAI_IMAGE_SIZE == "1024x1024":
-            size_value = "1024x1024"
-        elif OPENAI_IMAGE_SIZE == "1792x1024":
-            size_value = "1792x1024"
-        elif OPENAI_IMAGE_SIZE == "1024x1792":
-            size_value = "1024x1792"
+        saved_path = generate_openai_image(self.client, image_prompt, self.image_path)
+        if not saved_path:
+            raise ValueError("Image generation failed – see logs for details")
 
-        quality_value: Literal["standard", "hd", "low"] = "low"
-
-        result = self.client.images.generate(
-            model=OPENAI_IMAGE_MODEL,
-            prompt=image_prompt,
-            size=size_value,
-            quality=quality_value,
-            n=1,
-        )
-
-        # Validate API response
-        if not result.data or not result.data[0].b64_json:
-            raise ValueError("OpenAI API returned empty response for image generation")
-
-        image_data = result.data[0].b64_json
-
-        # Save image to file
-        self.image_path.write_bytes(base64.b64decode(image_data))
-        logging.info("Saved image: %s", self.image_path)
+        logging.info("Saved image: %s", saved_path)
 
     def run(self) -> None:
         """Execute the full generation pipeline: story and image."""
