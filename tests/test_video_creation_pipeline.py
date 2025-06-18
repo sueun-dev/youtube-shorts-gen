@@ -74,10 +74,12 @@ Image: {self.test_run_dir}/images/sentence_2.png
 
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
-    @patch("youtube_shorts_gen.media.paragraph_processor.get_openai_client")
-    def test_pipeline_uses_all_images(self, mock_get_client, mock_tts, mock_subprocess):
+    @patch("openai.OpenAI")
+    def test_pipeline_uses_all_images(self, mock_openai_class, mock_tts, mock_subprocess):
         """Test that the pipeline correctly uses all available images."""
         # Setup mocks
+        mock_client = mock_openai_class.return_value
+        
         mock_tts_instance = MagicMock()
         mock_tts.return_value = mock_tts_instance
         mock_tts_instance.generate_for_paragraphs.return_value = [
@@ -108,55 +110,60 @@ Image: {self.test_run_dir}/images/sentence_2.png
                     f"{self.test_run_dir}/images/sentence_2.png",
                 ],
             ),
-            # Mock text processor to return expected paragraphs
-            patch.object(
-                TextProcessor,
-                "get_content_segments",
-                return_value=[
-                    "The dragon snarled at the knight as she hid the.",
-                    "Rearing her head back she let out a loud'",
-                ],
-            ),
-            # Apply the mock to VideoAssembler.create_segment_video
             patch(
                 "youtube_shorts_gen.media.video_assembler.VideoAssembler.create_segment_video",
                 side_effect=mock_create_segment,
             ),
-            # Mock concatenate_segments
             patch(
                 "youtube_shorts_gen.media.video_assembler.VideoAssembler.concatenate_segments",
                 return_value=f"{self.test_run_dir}/output_story_video.mp4",
             ),
         ):
-            # Create processor and run
-            processor = ParagraphProcessor(self.test_run_dir)
-            result = processor.process(self.test_story)
+            # Create processor with mock client
+            processor = ParagraphProcessor(self.test_run_dir, client=mock_client)
 
-            # 1. Check if both segments were created
-            self.assertEqual(len(result.get("segment_paths", [])), 2)
+            # Mock text processor to return expected paragraphs
+            with patch.object(
+                processor.text_processor,
+                "get_content_segments",
+                return_value=[
+                    "The dragon snarled at the knight as she hid the princess behind her.",
+                    "Rearing her head back she let out a loud roar, 'FOR THE LAST TIME!'",
+                ],
+            ):
+                # Run the process method
+                result = processor.process(self.test_story)
 
-            # 2. Make sure different images were used
-            used_images = [call[0] for call in segment_create_calls]
-            self.assertEqual(len(used_images), 2)
-            # Make sure the images are different
-            self.assertNotEqual(used_images[0], used_images[1])
+                # Verify the result contains the right number of segments
+                self.assertEqual(len(result["segment_paths"]), 2)
 
-    @patch("requests.get")
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.get_openai_client"
-    )
-    @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
+                # Verify the text segments were processed correctly
+                self.assertEqual(len(result["processed_paragraphs"]), 2)
+                self.assertTrue(
+                    "dragon snarled" in result["processed_paragraphs"][0]
+                )
+
+                # Verify the segment creation calls used the correct images
+                self.assertEqual(len(segment_create_calls), 2)
+                self.assertEqual(
+                    segment_create_calls[0][0], f"{self.test_run_dir}/images/sentence_1.png"
+                )
+                self.assertEqual(
+                    segment_create_calls[1][0], f"{self.test_run_dir}/images/sentence_2.png"
+                )
+
+    @patch("youtube_shorts_gen.scrapers.scraper_factory.ScraperFactory.get_scraper")
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.ScraperFactory.get_scraper"
-    )
+    @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
+    @patch("openai.OpenAI")
+    @patch("requests.get")
     def test_end_to_end_content_to_video_pipeline(
         self,
-        mock_get_scraper,
-        mock_subprocess,
-        mock_tts,
-        mock_get_client,
         mock_requests,
+        mock_openai_class,
+        mock_tts,
+        mock_subprocess,
+        mock_get_scraper,
     ):
         """Test the end-to-end pipeline from internet content to video creation."""
         # Mock requests for internet content
@@ -180,8 +187,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
         mock_get_scraper.return_value = mock_scraper
 
         # Mock OpenAI responses for image generation
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
+        mock_client = mock_openai_class.return_value
 
         mock_image_data = MagicMock()
         mock_image_data.b64_json = (
@@ -229,11 +235,11 @@ Image: {self.test_run_dir}/images/sentence_2.png
             ),
         ):
             # First step: fetch script and images
-            script_fetcher = ScriptAndImageFromInternet(self.test_run_dir)
+            script_fetcher = ScriptAndImageFromInternet(self.test_run_dir, client=mock_client)
             script_result = script_fetcher.run()
 
             # Second step: process content into segments
-            processor = ParagraphProcessor(self.test_run_dir)
+            processor = ParagraphProcessor(self.test_run_dir, client=mock_client)
             # Ensure story_text is a string, not a list
             story_text = (
                 script_result["story"]

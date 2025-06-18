@@ -1,13 +1,14 @@
 """Module for generating text-to-speech audio from text."""
 
 import logging
+import os
 from pathlib import Path
 
-from gtts import gTTS
+from elevenlabs.client import ElevenLabs
 
 
 class TTSGenerator:
-    """Generates text-to-speech audio from text using gTTS.
+    """Generates text-to-speech audio from text using the ElevenLabs TTS API.
 
     This class handles the process of converting text to speech
     and saving the resulting audio to a file.
@@ -51,8 +52,20 @@ class TTSGenerator:
         Returns:
             Path to the generated audio file
         """
-        logging.info("Generating TTS...")
-        tts = gTTS(text, lang=self.lang)
-        tts.save(str(self.audio_path))
+        logging.info("Generating TTS with ElevenLabs...")
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise OSError("ELEVENLABS_API_KEY environment variable not set.")
+
+        client = ElevenLabs()
+        audio_bytes = client.generate(text=text, voice="JBFqnCBsd6RMkjVDRZzb")
+
+        with open(self.audio_path, "wb") as f:
+            if isinstance(audio_bytes, bytes | bytearray):
+                f.write(audio_bytes)
+            else:
+                # If generate returns an iterator (stream), join chunks
+                for chunk in audio_bytes:
+                    f.write(chunk)
         logging.info("TTS saved: %s", self.audio_path)
         return str(self.audio_path)

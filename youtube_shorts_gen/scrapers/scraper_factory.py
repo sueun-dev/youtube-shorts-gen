@@ -2,12 +2,18 @@
 
 from youtube_shorts_gen.scrapers.base_scraper import ContentScraper
 from youtube_shorts_gen.scrapers.dogdrip_scraper import DogdripScraper
+from youtube_shorts_gen.scrapers.youtube_transcript_scraper import (
+    YouTubeTranscriptScraper,
+)
 
 
 class ScraperFactory:
     """Factory class for creating appropriate content scrapers."""
 
-    _scrapers: dict[str, type[ContentScraper]] = {"dogdrip": DogdripScraper}
+    _scrapers: dict[str, type[ContentScraper]] = {
+        "dogdrip": DogdripScraper,
+        "youtube": YouTubeTranscriptScraper
+    }
 
     @classmethod
     def get_scraper(cls, source_type: str) -> ContentScraper:

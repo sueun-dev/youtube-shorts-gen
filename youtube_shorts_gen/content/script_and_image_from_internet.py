@@ -1,82 +1,71 @@
-"""Module for fetching stories from the internet for YouTube shorts."""
-
-import base64
 import logging
 import random
 from pathlib import Path
-from typing import Literal, cast
 
 import nltk
 from nltk.tokenize import sent_tokenize
+from openai import OpenAI
 
 from youtube_shorts_gen.scrapers.scraper_factory import ScraperFactory
-from youtube_shorts_gen.utils.config import (
-    IMAGE_PROMPT_TEMPLATE,
-    OPENAI_IMAGE_MODEL,
-    OPENAI_IMAGE_QUALITY,
-    OPENAI_IMAGE_SIZE,
+from youtube_shorts_gen.utils.config import IMAGE_PROMPT_TEMPLATE
+from youtube_shorts_gen.utils.openai_image import (
+    generate_image as generate_openai_image,
 )
-from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 nltk.download("punkt", quiet=True)
 
+MAX_SENTENCES: int = 8  # Upper limit to keep shorts within ~60s
+MIN_CHARS_SPLIT: int = 100  # If text > this and only 1 sentence, force split
+IMAGES_DIR_NAME: str = "images"
+DEFAULT_SOURCE_TYPE: str = "dogdrip"
+SENTENCE_IMAGE_FILENAME_TEMPLATE: str = "sentence_{index}.png"
 
 class ScriptAndImageFromInternet:
     """Fetches short stories or content from the internet for YouTube shorts
     and generates images for each sentence.
     """
 
-    def __init__(self, run_dir: str):
+    def __init__(self, run_dir: str, client: OpenAI):
         """Initialize the internet script fetcher.
 
         Args:
             run_dir: Directory to save fetched content
         """
         self.run_dir = Path(run_dir)
-        # self.run_dir is expected to be created by the caller.
         self.prompt_path = self.run_dir / "story_prompt.txt"
-        self.client = get_openai_client()
+        self.client = client
 
-        # Create images directory
-        self.images_dir = self.run_dir / "images"
+        self.images_dir = self.run_dir / IMAGES_DIR_NAME
         self.images_dir.mkdir(parents=True, exist_ok=True)
 
-        # Default content source type FIXME!
-        self.source_type = "dogdrip"
+        self.source_type = DEFAULT_SOURCE_TYPE
 
-    def _split_into_sentences(self, text: str) -> list[str]:
-        """Split text into sentences.
+    def tokenize_and_clean(self, text: str) -> list[str]:
+        """NLTK 토큰화 + 짧은 문장 제거."""
+        return [s.strip() for s in sent_tokenize(text) if len(s.strip()) > 10]
 
-        Args:
-            text: Text to split
-
-        Returns:
-            List of sentences suitable for YouTube shorts
-        """
-        # Use NLTK's Punkt tokenizer for accurate sentence splitting
-        sentences = sent_tokenize(text)
-        # Filter out empty and too-short sentences
-        sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
-
-        # Limit to a reasonable number of sentences for shorts
-        if len(sentences) > 8:
-            sentences = sentences[:8]
-        elif len(sentences) < 2 and len(text) > 100:
-            # If only one sentence, try to split it further
-            midpoint = len(text) // 2
-            space_pos = text.find(" ", midpoint)
-            if space_pos != -1:
-                sentences = [text[:space_pos].strip(), text[space_pos:].strip()]
-
-        # Log the sentences
-        for i, sentence in enumerate(sentences):
-            logging.info(
-                "Sentence %d: %s",
-                i + 1,
-                sentence[:50] + ("..." if len(sentence) > 50 else ""),
-            )
-
+    def normalise_sentence_count(
+        self,
+        sentences: list[str],
+        *,
+        max_len: int = MAX_SENTENCES,
+        fallback_min_chars: int = MIN_CHARS_SPLIT,
+        original_text: str = "",
+    ) -> list[str]:
+        """MAX_SENTENCES 문장 제한 및 2문장 fallback 로직."""
+        if len(sentences) > max_len:
+            return sentences[:max_len]
+        if len(sentences) < 2 and len(original_text) > fallback_min_chars:
+            midpoint = original_text.find(" ", len(original_text) // 2)
+            if midpoint != -1:
+                return [original_text[:midpoint].strip(),
+                        original_text[midpoint:].strip()]
         return sentences
+
+    def split_into_sentences(self, text: str) -> list[str]:
+        """내부 단계 호출만 담당."""
+        sentences = self.tokenize_and_clean(text)
+        return self.normalise_sentence_count(sentences, original_text=text)
 
     def _generate_image_for_sentence(self, sentence: str, index: int) -> str:
         """Generate an image for a sentence using DALL·E.
@@ -88,54 +77,12 @@ class ScriptAndImageFromInternet:
         Returns:
             Path to the generated image or empty string if generation fails
         """
-        # Create a prompt for the image based on the sentence
         image_prompt = IMAGE_PROMPT_TEMPLATE.format(story=sentence)
-        image_path = self.images_dir / f"sentence_{index + 1}.png"
+        image_path = self.images_dir / SENTENCE_IMAGE_FILENAME_TEMPLATE.format(
+            index=index + 1
+        )
 
-        try:
-            # Validate and safely assign Literal types
-            VALID_SIZES = ["1024x1024", "1792x1024", "1024x1792"]
-            VALID_QUALITIES = ["standard", "hd", "low"]
-
-            if OPENAI_IMAGE_SIZE not in VALID_SIZES:
-                raise ValueError(f"Invalid image size: {OPENAI_IMAGE_SIZE}")
-            if OPENAI_IMAGE_QUALITY not in VALID_QUALITIES:
-                raise ValueError(f"Invalid image quality: {OPENAI_IMAGE_QUALITY}")
-
-            size_value = cast(
-                Literal["1024x1024", "1792x1024", "1024x1792"], OPENAI_IMAGE_SIZE
-            )
-            quality_value = cast(Literal["standard", "hd", "low"], OPENAI_IMAGE_QUALITY)
-
-            result = self.client.images.generate(
-                model=OPENAI_IMAGE_MODEL,
-                prompt=image_prompt,
-                size=size_value,
-                quality=quality_value,
-                n=1,
-            )
-
-            if not result.data or not result.data[0].b64_json:
-                raise ValueError(
-                    "OpenAI API returned empty response for image generation"
-                )
-
-            image_data = result.data[0].b64_json
-
-            with open(image_path, "wb") as f:
-                f.write(base64.b64decode(image_data))
-
-            logging.info("Generated image for sentence %d: %s", index + 1, image_path)
-            return str(image_path)
-
-        except ValueError as e:
-            logging.error("Value error generating image %d: %s", index + 1, e)
-        except OSError as e:
-            logging.error("I/O error saving image %d: %s", index + 1, e)
-        except Exception as e:
-            logging.error("Unexpected error generating image %d: %s", index + 1, e)
-
-        return ""
+        return generate_openai_image(self.client, image_prompt, image_path)
 
     def _save_mapping_file(
         self, story: str, sentences: list[str], image_paths: list[str]
@@ -154,8 +101,7 @@ class ScriptAndImageFromInternet:
                 for i, (sentence, image) in enumerate(
                     zip(sentences, image_paths, strict=False)
                 ):
-                    image_path = image if image is not None else ""
-                    f.write(f"Sentence {i + 1}: {sentence}\nImage: {image_path}\n\n")
+                    f.write(f"Sentence {i + 1}: {sentence}\nImage: {image}\n\n")
             logging.info("Created sentence-image mapping file at %s", mapping_path)
         except OSError as e:
             logging.error("Failed to create mapping file: %s", e)
@@ -174,9 +120,9 @@ class ScriptAndImageFromInternet:
             logging.info("Fetched %d stories from %s", len(stories), self.source_type)
 
             if not stories:
-                error_msg = f"No stories found from {self.source_type}"
-                logging.error(error_msg)
-                raise ValueError(error_msg)
+                raise RuntimeError(
+                    f"No stories returned by scraper '{self.source_type}'"
+                )
 
             story = random.choice(stories)
         except Exception as e:
@@ -186,14 +132,13 @@ class ScriptAndImageFromInternet:
         self.prompt_path.write_text(story, encoding="utf-8")
         logging.info("Saved internet story: %s", self.prompt_path)
 
-        sentences = self._split_into_sentences(story)
+        sentences = self.split_into_sentences(story)
         logging.info("Split story into %d sentences", len(sentences))
 
         image_paths = []
         for i, sentence in enumerate(sentences):
             image_path = self._generate_image_for_sentence(sentence, i)
-            if image_path:
-                image_paths.append(image_path)
+            image_paths.append(image_path)
 
         self._save_mapping_file(story, sentences, image_paths)
 

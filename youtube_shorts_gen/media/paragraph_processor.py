@@ -1,10 +1,8 @@
-"""Module for orchestrating paragraph-based content processing for video generation."""
-
 import logging
 from pathlib import Path
 from typing import Any
 
-from youtube_shorts_gen.utils.openai_client import get_openai_client
+from openai import OpenAI
 
 from .paragraph_tts import ParagraphTTS
 from .text_processor import TextProcessor
@@ -21,7 +19,7 @@ class ParagraphProcessor:
     these images.
     """
 
-    def __init__(self, run_dir: str):
+    def __init__(self, run_dir: str, client: OpenAI):
         """Initialize the paragraph processor and its helper modules.
 
         Args:
@@ -31,7 +29,7 @@ class ParagraphProcessor:
         self.mapping_path = self.run_dir / "paragraph_mapping.txt"
         self.images_dir = self.run_dir / "images"
 
-        self.openai_client = get_openai_client()
+        self.openai_client = client
 
         self.text_processor = TextProcessor(run_dir, self.openai_client)
         self.tts_generator = ParagraphTTS(run_dir)

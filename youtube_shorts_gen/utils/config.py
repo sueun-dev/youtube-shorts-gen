@@ -31,7 +31,7 @@ if _OPENAI_IMAGE_SIZE not in _IMAGE_SIZES:
 OPENAI_IMAGE_SIZE: Final[str] = _OPENAI_IMAGE_SIZE
 
 # Validate and set image quality
-_IMAGE_QUALITIES = {"standard", "hd", "low"}
+_IMAGE_QUALITIES = {"standard", "high", "low"}
 _OPENAI_IMAGE_QUALITY = os.getenv("OPENAI_IMAGE_QUALITY", "low").lower()
 if _OPENAI_IMAGE_QUALITY not in _IMAGE_QUALITIES:
     error_msg = f"Invalid OPENAI_IMAGE_QUALITY: {_OPENAI_IMAGE_QUALITY}."
@@ -163,3 +163,7 @@ EMPTY_IMAGE_B64: Final[str] = (
 # Runtime Configuration
 RUNS_BASE_DIR: Final[str] = "runs"
 SLEEP_SECONDS: Final[int] = 120
+
+# Chat Generation Defaults
+CHAT_TEMPERATURE_DEFAULT: Final[float] = float(os.getenv("CHAT_TEMPERATURE", "0.9"))
+CHAT_MAX_TOKENS_DEFAULT: Final[int] = int(os.getenv("CHAT_MAX_TOKENS", "300"))
