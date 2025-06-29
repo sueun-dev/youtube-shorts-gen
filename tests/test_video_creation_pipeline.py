@@ -116,7 +116,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
             ),
             patch(
                 "youtube_shorts_gen.media.video_assembler.VideoAssembler.concatenate_segments",
-                return_value=f"{self.test_run_dir}/output_story_video.mp4",
+                return_value=f"{self.test_run_dir}/final_story_video.mp4",
             ),
         ):
             # Create processor with mock client
@@ -152,7 +152,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
                     segment_create_calls[1][0], f"{self.test_run_dir}/images/sentence_2.png"
                 )
 
-    @patch("youtube_shorts_gen.scrapers.scraper_factory.ScraperFactory.get_scraper")
+    @patch("youtube_shorts_gen.scrapers.dogdrip.fetch_dogdrip_content")
     @patch("youtube_shorts_gen.media.video_assembler.subprocess.run")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
     @patch("openai.OpenAI")
@@ -163,7 +163,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
         mock_openai_class,
         mock_tts,
         mock_subprocess,
-        mock_get_scraper,
+        mock_fetch_dogdrip_content,
     ):
         """Test the end-to-end pipeline from internet content to video creation."""
         # Mock requests for internet content
@@ -180,11 +180,8 @@ Image: {self.test_run_dir}/images/sentence_2.png
         # Configure mock to return different responses for different URLs
         mock_requests.side_effect = [main_page_response, post_page_response]
 
-        # Patch ScraperFactory.get_scraper to return a mock scraper
-        # with fetch_content returning a non-empty list
-        mock_scraper = MagicMock()
-        mock_scraper.fetch_content.return_value = [self.test_story]
-        mock_get_scraper.return_value = mock_scraper
+        # Mock the fetch_dogdrip_content function to return our test story
+        mock_fetch_dogdrip_content.return_value = [self.test_story]
 
         # Mock OpenAI responses for image generation
         mock_client = mock_openai_class.return_value
@@ -231,7 +228,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
             ),
             patch(
                 "youtube_shorts_gen.media.video_assembler.VideoAssembler.concatenate_segments",
-                return_value=f"{self.test_run_dir}/output_story_video.mp4",
+                return_value=f"{self.test_run_dir}/final_story_video.mp4",
             ),
         ):
             # First step: fetch script and images

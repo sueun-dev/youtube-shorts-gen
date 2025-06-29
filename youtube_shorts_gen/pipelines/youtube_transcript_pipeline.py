@@ -6,11 +6,10 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from youtube_shorts_gen.content.script_and_image_from_internet import ScriptAndImageFromInternet
 from youtube_shorts_gen.content.transcript_segmenter import TranscriptSegmenter
-from youtube_shorts_gen.media.paragraph_processor import ParagraphProcessor
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
 from youtube_shorts_gen.media.video_assembler import VideoAssembler
+from youtube_shorts_gen.utils.config import MAX_RUNWAY_VIDEOS_PER_SEGMENT
 from youtube_shorts_gen.scrapers.youtube_transcript_scraper import (
     YouTubeTranscriptScraper,
 )
@@ -118,15 +117,27 @@ def process_segment_into_video(
         audio_dir = segment_dir / "audio"
         audio_dir.mkdir(exist_ok=True)
         
+        # Videos save directory creation
+        videos_dir = segment_dir / "videos"
+        videos_dir.mkdir(exist_ok=True)
+        
         # Segment split into lines
         lines = [line for line in segment.split('\n') if line.strip()]
         
-        # Image and TTS generation for each line
+        # Image, video, and TTS generation for each line
         image_paths: list[str] = []
         audio_paths: list[str] = []
+        runway_video_paths: list[str] = []
         
         # Reuse a single TTS generator per segment for efficiency
         tts_generator = TTSGenerator(str(audio_dir), lang="ko")
+        
+        # Initialize Runway VideoGenerator
+        from youtube_shorts_gen.media.runway import VideoGenerator
+        video_generator = VideoGenerator(str(segment_dir))
+        
+        # Track the last successfully generated Runway video path for reuse
+        last_runway_video_path = None
         
         for i, line in enumerate(lines):
             if not line.strip():
@@ -135,27 +146,65 @@ def process_segment_into_video(
             # Generate image
             image_path = images_dir / f"line_{i+1}.png"
             image_result = generate_image_for_line(client, line, image_path)
-            if image_result:
-                image_paths.append(image_result)
+            if not image_result:
+                continue
+            image_paths.append(image_result)
             
             # Generate TTS audio
             line_audio_path = audio_dir / f"line_{i+1}_audio.mp3"
             tts_generator.audio_path = line_audio_path
             audio_path = tts_generator.generate_from_text(line)
-            if audio_path:
-                audio_paths.append(audio_path)
+            if not audio_path:
+                continue
+            audio_paths.append(audio_path)
+            
+            # Generate dynamic video using Runway AI, but only up to the configured limit
+            if i < MAX_RUNWAY_VIDEOS_PER_SEGMENT:
+                try:
+                    # Use the generated image and line text to create a dynamic video
+                    runway_video_path = video_generator.generate(
+                        image_path=image_result,
+                        prompt_text=line,
+                        duration=5.0  # Default duration, will be adjusted to match audio
+                    )
+                    if runway_video_path:
+                        runway_video_paths.append(runway_video_path)
+                        last_runway_video_path = runway_video_path
+                        logging.info(f"Generated Runway video for line {i+1}: {runway_video_path}")
+                except Exception as e:
+                    logging.error(f"Runway video generation failed for line {i+1}: {e}")
+                    # If Runway video generation fails, we'll fall back to using the static image
+            elif last_runway_video_path:
+                # For lines beyond the limit, reuse the last successfully generated Runway video
+                runway_video_paths.append(last_runway_video_path)
+                logging.info(f"Reusing last Runway video for line {i+1} (limit reached): {last_runway_video_path}")
+            else:
+                # If no Runway videos were successfully generated, we'll fall back to static images
+                logging.info(f"Using static image for line {i+1} (no Runway videos available)")
         
-        # Image and audio used to create video
+        # Video assembly with Runway videos or fallback to static images
         video_assembler = VideoAssembler(str(segment_dir))
         segment_videos = []
         
-        # Create segment video for each line
+        # Create segment video for each line, using Runway videos when available
         for i in range(min(len(image_paths), len(audio_paths))):
-            segment_video = video_assembler.create_segment_video(
-                image_path=image_paths[i],
-                audio_path=audio_paths[i],
-                index=i
-            )
+            # If we have a Runway video for this line, use it instead of the static image
+            if i < len(runway_video_paths) and os.path.exists(runway_video_paths[i]):
+                segment_video = video_assembler.create_segment_video_with_runway(
+                    video_path=runway_video_paths[i],
+                    audio_path=audio_paths[i],
+                    index=i
+                )
+                logging.info(f"Created segment video with Runway for line {i+1}")
+            else:
+                # Fallback to static image if Runway video generation failed or wasn't attempted
+                segment_video = video_assembler.create_segment_video(
+                    image_path=image_paths[i],
+                    audio_path=audio_paths[i],
+                    index=i
+                )
+                logging.info(f"Created segment video with static image for line {i+1}")
+                
             if segment_video:
                 segment_videos.append(segment_video)
         
@@ -174,8 +223,11 @@ def process_segment_into_video(
             "segment_text": segment,
             "image_paths": image_paths,
             "audio_paths": audio_paths,
+            "runway_video_paths": runway_video_paths,
             "segment_videos": segment_videos,
-            "final_video": final_video
+            "final_video": final_video,
+            "runway_videos_generated": min(len(lines), MAX_RUNWAY_VIDEOS_PER_SEGMENT),
+            "runway_videos_reused": max(0, len(runway_video_paths) - min(len(lines), MAX_RUNWAY_VIDEOS_PER_SEGMENT))
         }
     except Exception as e:
         logging.error(f"Segment processing error: {e}")
