@@ -6,10 +6,11 @@ import nltk
 from nltk.tokenize import sent_tokenize
 from openai import OpenAI
 
-from youtube_shorts_gen.scrapers.scraper_factory import ScraperFactory
+from youtube_shorts_gen.scrapers.dogdrip import fetch_dogdrip_content
 from youtube_shorts_gen.utils.config import IMAGE_PROMPT_TEMPLATE
 from youtube_shorts_gen.utils.openai_image import (
     generate_image as generate_openai_image,
+    generate_sequential_images,
 )
 
 nltk.download("punkt", quiet=True)
@@ -17,7 +18,6 @@ nltk.download("punkt", quiet=True)
 MAX_SENTENCES: int = 8  # Upper limit to keep shorts within ~60s
 MIN_CHARS_SPLIT: int = 100  # If text > this and only 1 sentence, force split
 IMAGES_DIR_NAME: str = "images"
-DEFAULT_SOURCE_TYPE: str = "dogdrip"
 SENTENCE_IMAGE_FILENAME_TEMPLATE: str = "sentence_{index}.png"
 
 class ScriptAndImageFromInternet:
@@ -37,8 +37,6 @@ class ScriptAndImageFromInternet:
 
         self.images_dir = self.run_dir / IMAGES_DIR_NAME
         self.images_dir.mkdir(parents=True, exist_ok=True)
-
-        self.source_type = DEFAULT_SOURCE_TYPE
 
     def tokenize_and_clean(self, text: str) -> list[str]:
         """NLTK 토큰화 + 짧은 문장 제거."""
@@ -61,11 +59,6 @@ class ScriptAndImageFromInternet:
                 return [original_text[:midpoint].strip(),
                         original_text[midpoint:].strip()]
         return sentences
-
-    def split_into_sentences(self, text: str) -> list[str]:
-        """내부 단계 호출만 담당."""
-        sentences = self.tokenize_and_clean(text)
-        return self.normalise_sentence_count(sentences, original_text=text)
 
     def _generate_image_for_sentence(self, sentence: str, index: int) -> str:
         """Generate an image for a sentence using DALL·E.
@@ -115,31 +108,38 @@ class ScriptAndImageFromInternet:
         story = ""
 
         try:
-            scraper = ScraperFactory.get_scraper(self.source_type)
-            stories = scraper.fetch_content()
-            logging.info("Fetched %d stories from %s", len(stories), self.source_type)
+            stories = fetch_dogdrip_content()
+            logging.info("Fetched %d stories from Dogdrip", len(stories))
 
             if not stories:
-                raise RuntimeError(
-                    f"No stories returned by scraper '{self.source_type}'"
-                )
+                raise RuntimeError("No stories returned from Dogdrip")
 
             story = random.choice(stories)
         except Exception as e:
-            logging.error("Failed to fetch stories from %s: %s", self.source_type, e)
+            logging.error("Failed to fetch stories from Dogdrip: %s", e)
             raise
 
         self.prompt_path.write_text(story, encoding="utf-8")
         logging.info("Saved internet story: %s", self.prompt_path)
 
-        sentences = self.split_into_sentences(story)
+        # Split the story into sentences and normalize the count
+        sentences = self.tokenize_and_clean(story)
+        sentences = self.normalise_sentence_count(sentences, original_text=story)
         logging.info("Split story into %d sentences", len(sentences))
-
-        image_paths = []
+ 
+        # Generate image prompts for all sentences
+        image_prompts = []
+        output_paths = []
         for i, sentence in enumerate(sentences):
-            image_path = self._generate_image_for_sentence(sentence, i)
-            image_paths.append(image_path)
-
+            image_prompt = IMAGE_PROMPT_TEMPLATE.format(story=sentence)
+            image_path = self.images_dir / SENTENCE_IMAGE_FILENAME_TEMPLATE.format(index=i + 1)
+            image_prompts.append(image_prompt)
+            output_paths.append(image_path)
+        
+        # Generate images with natural flow between scenes
+        image_paths = generate_sequential_images(self.client, image_prompts, output_paths)
+        logging.info("Generated %d sequential images", len(image_paths))
+        
         self._save_mapping_file(story, sentences, image_paths)
 
         return {

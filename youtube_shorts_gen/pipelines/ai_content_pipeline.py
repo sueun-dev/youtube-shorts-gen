@@ -25,9 +25,9 @@ def _generate_script_and_images(run_dir: str, client) -> dict[str, Any]:
 def _generate_ai_video(run_dir: str) -> dict[str, Any]:
     """Generate a base video from the images using Runway."""
     video_generator = VideoGenerator(run_dir)
-    result: dict[str, Any] = video_generator.generate()
-    logging.info("[AI Pipeline] Base video generated via Runway")
-    return result
+    video_path = video_generator.generate()  # Now returns the path to the generated video
+    logging.info("[AI Pipeline] Base video generated via Runway: %s", video_path)
+    return {"video_path": video_path}
 
 
 def _generate_tts(run_dir: str) -> str:

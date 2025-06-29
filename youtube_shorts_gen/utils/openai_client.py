@@ -2,35 +2,25 @@ from openai import OpenAI
 
 from youtube_shorts_gen.utils.config import OPENAI_API_KEY
 
-
-class OpenAIClientSingleton:
-    """Singleton class for OpenAI client."""
-
-    _instance: OpenAI | None = None
-
-    @classmethod
-    def get_client(cls) -> OpenAI:
-        """Get the OpenAI client instance.
-
-        Returns:
-            OpenAI client instance
-
-        Raises:
-            ValueError: If OPENAI_API_KEY is not set
-        """
-        if not OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY is not set in environment variables")
-
-        if cls._instance is None:
-            cls._instance = OpenAI(api_key=OPENAI_API_KEY)
-
-        return cls._instance
+# Module-level client instance for reuse
+_CLIENT = None
 
 
 def get_openai_client() -> OpenAI:
-    """Get the OpenAI client instance.
-
+    """Get an OpenAI client instance.
+    
     Returns:
-        OpenAI client instance
+        An initialized OpenAI client instance.
+        
+    Raises:
+        ValueError: If OPENAI_API_KEY environment variable is not set.
     """
-    return OpenAIClientSingleton.get_client()
+    global _CLIENT
+    
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY is not set in environment variables")
+    
+    if _CLIENT is None:
+        _CLIENT = OpenAI(api_key=OPENAI_API_KEY)
+        
+    return _CLIENT

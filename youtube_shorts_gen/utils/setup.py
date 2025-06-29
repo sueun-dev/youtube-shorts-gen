@@ -22,5 +22,5 @@ def setup_run_directory() -> Path:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_dir = Path(RUNS_BASE_DIR) / timestamp
     run_dir.mkdir(parents=True)
-    logging.info("[SETUP] Created run directory: %s", run_dir)
+    logging.info("[SETUP] Created run directory: %s. Ready to go!", run_dir)
     return run_dir
