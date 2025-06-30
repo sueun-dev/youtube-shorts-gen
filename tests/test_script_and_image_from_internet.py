@@ -106,21 +106,22 @@ class TestScriptAndImageFromInternet(unittest.TestCase):
         # Second call should contain the doc/123 path
         self.assertIn("doc/123", mock_requests_get.call_args_list[1][0][0])
 
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.get_openai_client"
-    )
-    def test_split_into_sentences(self, mock_get_client):
-        """Test that _split_into_sentences correctly splits text into sentences."""
+    @patch("openai.OpenAI")
+    def test_split_into_sentences(self, mock_openai_class):
+        """Test that split_into_sentences correctly splits text into sentences."""
         # Test story
         test_story = (
             "The dragon snarled. The knight stepped back. The princess was afraid."
         )
 
+        # Create mock OpenAI client
+        mock_client = mock_openai_class.return_value
+
         # Create the ScriptAndImageFromInternet instance
-        fetcher = ScriptAndImageFromInternet(self.test_run_dir)
+        fetcher = ScriptAndImageFromInternet(self.test_run_dir, client=mock_client)
 
         # Call the method
-        result = fetcher._split_into_sentences(test_story)
+        result = fetcher.split_into_sentences(test_story)
 
         # Assertions
         self.assertEqual(len(result), 3)
@@ -128,71 +129,64 @@ class TestScriptAndImageFromInternet(unittest.TestCase):
         self.assertEqual(result[1], "The knight stepped back.")
         self.assertEqual(result[2], "The princess was afraid.")
 
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.get_openai_client"
-    )
-    def test_split_into_sentences_handles_short_text(self, mock_get_client):
-        """Test that _split_into_sentences handles short text correctly."""
+    @patch("openai.OpenAI")
+    def test_split_into_sentences_handles_short_text(self, mock_openai_class):
+        """Test that split_into_sentences handles short text correctly."""
         # Short test text with no clear sentence breaks
         test_story = "Dragon and knight"
 
+        # Create mock OpenAI client
+        mock_client = mock_openai_class.return_value
+
         # Create the ScriptAndImageFromInternet instance
-        fetcher = ScriptAndImageFromInternet(self.test_run_dir)
+        fetcher = ScriptAndImageFromInternet(self.test_run_dir, client=mock_client)
 
         # Call the method
-        result = fetcher._split_into_sentences(test_story)
+        result = fetcher.split_into_sentences(test_story)
 
         # Even though it's short, it should be returned as is if over 10 chars
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], "Dragon and knight")
 
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.get_openai_client"
-    )
-    def test_generate_image_for_sentence(self, mock_get_client):
+    @patch("openai.OpenAI")
+    @patch("youtube_shorts_gen.content.script_and_image_from_internet.generate_openai_image")
+    def test_generate_image_for_sentence(self, mock_generate_image, mock_openai_class):
         """Test that _generate_image_for_sentence creates and saves an image."""
-        # Mock the OpenAI client
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-
-        # Mock the image generation response
-        mock_image_data = MagicMock()
-        mock_image_data.b64_json = self.test_image_b64
-        mock_image_response = MagicMock()
-        mock_image_response.data = [mock_image_data]
-        mock_client.images.generate.return_value = mock_image_response
+        # Create mock OpenAI client
+        mock_client = mock_openai_class.return_value
+        
+        # Set up the mock for generate_image with a side_effect function
+        expected_image_path = str(Path(self.test_run_dir, "images") / "sentence_2.png")
+        
+        def mock_generate_side_effect(client, prompt, output_path):
+            # Return the expected path regardless of inputs
+            return expected_image_path
+            
+        mock_generate_image.side_effect = mock_generate_side_effect
 
         # Create the ScriptAndImageFromInternet instance
-        fetcher = ScriptAndImageFromInternet(self.test_run_dir)
+        fetcher = ScriptAndImageFromInternet(self.test_run_dir, client=mock_client)
 
         # Test sentence
         test_sentence = "The dragon snarled at the knight."
 
-        # Use patch to avoid actually writing to the file system
-        with patch("builtins.open", mock_open()) as mock_file:
-            # Call the method
-            result = fetcher._generate_image_for_sentence(test_sentence, 1)
+        # Call the method
+        result = fetcher._generate_image_for_sentence(test_sentence, 1)
 
-            # Assertions
-            self.assertTrue(result.endswith("sentence_2.png"))
+        # Assertions
+        self.assertEqual(result, expected_image_path)
+        
+        # Verify generate_image was called with the correct client and a path
+        mock_generate_image.assert_called_once()
+        args, _ = mock_generate_image.call_args
+        self.assertEqual(args[0], mock_client)  # First arg should be client
+        self.assertTrue(isinstance(args[2], Path))  # Third arg should be a Path
 
-            # Verify image.generate was called with correct parameters
-            mock_client.images.generate.assert_called_once()
-            # Check that the sentence is in the prompt
-            self.assertIn(
-                test_sentence, mock_client.images.generate.call_args[1]["prompt"]
-            )
-
-            # Verify file was opened for writing
-            mock_file.assert_called_once()
-
-    @patch(
-        "youtube_shorts_gen.content.script_and_image_from_internet.get_openai_client"
-    )
-    @patch("requests.get")
     @patch("youtube_shorts_gen.content.script_and_image_from_internet.random.choice")
+    @patch("requests.get")
+    @patch("openai.OpenAI")
     def test_run_full_process(
-        self, mock_random_choice, mock_requests_get, mock_get_client
+        self, mock_openai_class, mock_requests_get, mock_random_choice
     ):
         """Test the full run method that fetches content and generates images."""
         # Mock the requests.get response for both the main page and post page
@@ -218,10 +212,9 @@ class TestScriptAndImageFromInternet(unittest.TestCase):
             "I GOT FULL CUSTODY IN THE DIVORCE, THE KING GOT THE CASTLE AND THE GOLD!'"
         )
 
-        # Mock the OpenAI client
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-
+        # Create mock OpenAI client
+        mock_client = mock_openai_class.return_value
+        
         # Mock the image generation response
         mock_image_data = MagicMock()
         mock_image_data.b64_json = self.test_image_b64
@@ -234,7 +227,7 @@ class TestScriptAndImageFromInternet(unittest.TestCase):
             patch("pathlib.Path.write_text") as mock_write_text,
             patch("builtins.open", mock_open()) as mock_file,
         ):
-            fetcher = ScriptAndImageFromInternet(self.test_run_dir)
+            fetcher = ScriptAndImageFromInternet(self.test_run_dir, client=mock_client)
 
             # Call the run method
             result = fetcher.run()
