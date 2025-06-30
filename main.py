@@ -172,23 +172,11 @@ def _run_timelapse_pipeline(run_dir: str) -> dict[str, Any]:
             except ValueError:
                 logging.warning("Invalid year range format. Use format 'YYYY-YYYY' (e.g., '1950-2020').")
         
-        # Ask user for per-image display duration (seconds)
-        while True:
-            frame_duration_str = input("Enter duration each image is shown in seconds (e.g., 0.5). Default 0.5: ").strip()
-            if not frame_duration_str:
-                frame_duration = 0.5
-                break
-            try:
-                frame_duration = float(frame_duration_str)
-                if frame_duration <= 0:
-                    logging.warning("Duration must be positive.")
-                    continue
-                break
-            except ValueError:
-                logging.warning("Please enter a valid number (e.g., 0.3)")
-
-        # FPS value (not heavily used) derived from frame duration
-        fps = max(1, round(1 / frame_duration))
+        # Fixed playback settings (no interactive prompt)
+        main_frame_duration = 0.5  # seconds each yearly image is shown
+        inter_frame_duration = 0.033  # seconds per interpolated frame (3 frames ≈ 0.1s)
+        num_inter_frames = 3  # three interpolated frames per transition
+        fps = 30  # encode video at 30 fps
         
         # Get video title and description
         video_title = input(f"Enter video title (default: 'Evolution of {subject_prompt} ({start_year}-{end_year})'): ")
@@ -214,7 +202,9 @@ def _run_timelapse_pipeline(run_dir: str) -> dict[str, Any]:
             upload_to_youtube=True,
             video_title=video_title,
             video_description=video_description,
-            frame_duration=frame_duration,
+            num_inter_frames=num_inter_frames,
+            inter_frame_duration=inter_frame_duration,
+            main_frame_duration=main_frame_duration,
             music_path=music_path_input
         )
         

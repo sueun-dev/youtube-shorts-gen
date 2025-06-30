@@ -43,9 +43,9 @@ def run_timelapse_pipeline(
     upload_to_youtube: bool = True,
     video_title: Optional[str] = None,
     video_description: Optional[str] = None,
-    num_inter_frames: int = 32,
-    inter_frame_duration: float = 0.03,
-    main_frame_duration: float = 1.0,
+    num_inter_frames: int =3,  # Use at most 3 interpolated frames
+    inter_frame_duration: float = 0.033,  # 30 fps -> ~0.099s total for 3 frames
+    main_frame_duration: float = 0.5,
 ) -> str:
 
     """Run the time-lapse video generation pipeline.
@@ -123,9 +123,6 @@ def run_timelapse_pipeline(
         error_msg = "No images were successfully generated"
         logging.error(error_msg)
         raise RuntimeError(error_msg)
-
-
-
 
         # Create video from images with smooth transitions (custom durations)
     video_path = _create_timelapse_video(
