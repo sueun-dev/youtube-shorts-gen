@@ -59,7 +59,13 @@ class YouTubeUploader:
 
         # Use default tags if none provided
         if default_tags is None:
-            default_tags = ["AI short", "YouTube Shorts", "OpenAI", "RunwayML", "gTTS"]
+            default_tags = [
+                "AI short", 
+                "YouTube Shorts", 
+                "OpenAI", 
+                "RunwayML", 
+                "ElevenLabs"
+            ]
         self.tags = default_tags
 
         # Initialize upload history tracker
@@ -146,10 +152,16 @@ class YouTubeUploader:
 
         # Read story content for video title and description
         story = self.prompt_path.read_text(encoding="utf-8").strip()
-
-        # Create title from first sentence (truncated to 90 chars)
-        title = story.split(".")[0][:90] + "..."
-        description = f"{story}\n\nGenerated with GPT, RunwayML, and gTTS."
+        
+        # Create title from second line of the story (truncated to 90 chars if needed)
+        story_lines = story.split("\n")
+        # If there's at least 2 lines, use second line, otherwise use first line
+        if len(story_lines) >= 2 and story_lines[1].strip():
+            title = story_lines[1].strip()[:90]
+        else:
+            # Fallback to first line if second line doesn't exist or is empty
+            title = story_lines[0].strip()[:90]
+        description = f"{story}\n\nGenerated with GPT, RunwayML, and ElevenLabs."
 
         # Check if this title has been uploaded before
         if self.history.is_duplicate_title(title):

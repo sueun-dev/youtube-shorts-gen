@@ -15,6 +15,9 @@ from youtube_shorts_gen.utils.config import (
     RUNWAY_PROMPT_TEMPLATE,
 )
 
+# Maximum duration supported by Runway API (in seconds)
+RUNWAY_MAX_DURATION = 5  # Using 5 seconds to be safe (must be an integer)
+
 
 class VideoGenerator:
     def __init__(self, run_dir: str):
@@ -51,60 +54,84 @@ class VideoGenerator:
         return f"data:{mime};base64,{encoded}"
 
     def _create_runway_prompt(self, story_text: str) -> str:
-        """Create a specialized prompt for Runway following their guidelines.
+        """Create a specialized prompt for Runway following Gen-3 Alpha guidelines.
 
         Args:
             story_text: The original story text
 
         Returns:
-            A formatted prompt optimized for Runway's Gen-3 Alpha model
+            A formatted prompt optimized for Runway's Gen-3 Alpha model with realism
         """
         # Extract key subjects from the story
         words = story_text.split()
-        # Take a few random words to use as potential subjects
+        
+        # Extract meaningful nouns and descriptive words for the subject
         potential_subjects = [w for w in words if len(w) > 4 and w.isalpha()][:5]
+        
+        # Select a subject or use a default realistic subject
         subject = (
-            random.choice(potential_subjects) if potential_subjects else "surreal scene"
+            random.choice(potential_subjects) if potential_subjects else "person in natural setting"
         )
+        
+        # Use descriptive, positive phrasing for the subject
+        if len(subject) < 10:  # If subject is too short, make it more descriptive
+            subject = f"detailed {subject} with realistic features"
 
-        # Create a Runway-optimized prompt
+        # Select camera movement and movement type from the updated lists
         camera_movement = random.choice(RUNWAY_CAMERA_MOVEMENTS)
         movement_type = random.choice(RUNWAY_MOVEMENT_TYPES)
 
-        # Format the prompt template
-        runway_prompt = RUNWAY_PROMPT_TEMPLATE.format(subject=subject)
-
-        # Replace the default camera movement and movement type with random ones
-        runway_prompt = runway_prompt.replace("Tracking shot", camera_movement)
-        runway_prompt = runway_prompt.replace("warps and undulates", movement_type)
+        # Format the prompt template following the Gen-3 Alpha structure:
+        # [camera movement]: [establishing scene]. [additional details].
+        runway_prompt = RUNWAY_PROMPT_TEMPLATE.format(
+            camera_movement=camera_movement,
+            subject=subject,
+            movement_type=movement_type
+        )
 
         # Save the Runway prompt to a file
         runway_prompt_path = self.run_dir / "runway_prompt.txt"
         runway_prompt_path.write_text(runway_prompt, encoding="utf-8")
-        logging.info("Created specialized Runway prompt: %s", runway_prompt_path)
+        logging.info("Created realistic Runway prompt: %s", runway_prompt_path)
 
         return runway_prompt
 
-    def generate(self) -> None:
+    def generate(self, image_path: str = None, prompt_text: str = None, duration: float = 5.0) -> str:
         """Generate a video from an image and prompt using RunwayML.
 
-        The method reads the image and prompt from the run directory,
-        sends a request to RunwayML, and saves the resulting video.
+        Args:
+            image_path: Path to the image file. If None, uses default path in run_dir.
+            prompt_text: Text to use for the prompt. If None, reads from default file.
+            duration: Target duration of the final video in seconds. Default is 5.0 seconds.
+                Note: The actual generated video will be RUNWAY_MAX_DURATION seconds long,
+                and will need to be looped externally to match this target duration.
+
+        Returns:
+            Path to the generated video file (of RUNWAY_MAX_DURATION length).
 
         Raises:
             FileNotFoundError: If image or prompt files are missing
             RuntimeError: If video generation fails
         """
-        image_path = self.run_dir / "story_image.png"
-        prompt_path = self.run_dir / "story_prompt.txt"
+        # Generate a unique identifier for this video
+        self.current_video_id = int(time.time() * 1000) % 10000
+        # Handle default paths for backward compatibility
+        if image_path is None:
+            image_path = self.run_dir / "story_image.png"
+        else:
+            image_path = Path(image_path)
 
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
-        if not prompt_path.exists():
-            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
-
-        # Read the original story prompt
-        story_text = prompt_path.read_text(encoding="utf-8").strip()
+            
+        # Get prompt text either from parameter or default file
+        if prompt_text is None:
+            prompt_path = self.run_dir / "story_prompt.txt"
+            if not prompt_path.exists():
+                raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+            story_text = prompt_path.read_text(encoding="utf-8").strip()
+        else:
+            story_text = prompt_text
 
         # Create a specialized Runway prompt
         runway_prompt = self._create_runway_prompt(story_text)
@@ -112,13 +139,16 @@ class VideoGenerator:
         # Convert image to data URI
         image_data_uri = self._image_to_data_uri(str(image_path))
 
-        # FIXME! Send request to RunwayML
+        # Send request to RunwayML with fixed duration (Runway API limit)
+        # The target duration parameter is stored but not used here
+        # The caller will need to loop the video to match the target duration
+        logging.info(f"Requesting Runway video with fixed duration: {RUNWAY_MAX_DURATION}s (target: {duration}s)")
         response = self.client.image_to_video.create(
             model="gen3a_turbo",
             prompt_image=image_data_uri,
             prompt_text=runway_prompt,
             ratio="768:1280",
-            duration=5,
+            duration=RUNWAY_MAX_DURATION,
         )
 
         logging.info("RunwayML task started: Task ID = %s", response.id)
@@ -135,20 +165,29 @@ class VideoGenerator:
 
         if task.status == "SUCCEEDED" and task.output:
             video_url = task.output[0]
-            self._download_video(video_url)
+            output_path = self._download_video(video_url)
+            return str(output_path)
         else:
             raise RuntimeError(f"Video generation failed: status = {task.status}")
 
-    def _download_video(self, video_url: str) -> None:
+    def _download_video(self, video_url: str) -> Path:
         """Download a video from URL and save it to the run directory.
 
         Args:
             video_url: URL of the video to download
 
+        Returns:
+            Path to the downloaded video file
+
         Raises:
             ConnectionError: If download fails
         """
-        output_path = self.run_dir / "output_story_video.mp4"
+        # Create videos directory if it doesn't exist
+        videos_dir = self.run_dir / "videos"
+        videos_dir.mkdir(exist_ok=True)
+        
+        # Use the current_video_id to create a unique filename
+        output_path = videos_dir / f"runway_video_{self.current_video_id}.mp4"
 
         response = requests.get(video_url, stream=True)
         if response.status_code == 200:
@@ -156,6 +195,7 @@ class VideoGenerator:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
             logging.info("Video download complete: %s", output_path)
+            return output_path
         else:
             raise ConnectionError(
                 f"Video download failed: status code = {response.status_code}"

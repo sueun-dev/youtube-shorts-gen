@@ -17,7 +17,6 @@ from youtube_shorts_gen.content.script_and_image_gen import (  # noqa: E402
 )
 
 
-@patch("youtube_shorts_gen.content.script_and_image_gen.get_openai_client")
 class TestScriptAndImageGen(unittest.TestCase):
     """Test suite for YouTube script generator functions."""
 
@@ -46,11 +45,10 @@ class TestScriptAndImageGen(unittest.TestCase):
             # In a real scenario, we would remove files, but just log it
             logging.info(f"Would remove test directory: {self.test_run_dir}")
 
-    def test_generate_story_and_image(self, mock_get_client):
+    def test_generate_story_and_image(self):
         """Test the generate_story_and_image function with mocked dependencies."""
-        # Configure mocks
+        # Create mock client
         mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
 
         # Mock the chat completions response
         mock_chat_response = MagicMock()
@@ -65,7 +63,7 @@ class TestScriptAndImageGen(unittest.TestCase):
         mock_client.images.generate.return_value = mock_image_response
 
         # Call the function
-        script_generator = ScriptAndImageGenerator(self.test_run_dir)
+        script_generator = ScriptAndImageGenerator(self.test_run_dir, client=mock_client)
         script_generator.run()
 
         # Assertions
@@ -75,18 +73,17 @@ class TestScriptAndImageGen(unittest.TestCase):
         # The current implementation uses Path.write_text and Path.write_bytes directly
         # instead of using open(), so we don't need to check file operations
 
-    def test_error_handling(self, mock_get_client):
+    def test_error_handling(self):
         """Test error handling in the generate_story_and_image function."""
-        # Configure mock to raise a specific exception
+        # Create mock client that raises an exception
         mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
         # Using a more specific exception type for API issues
         error_msg = "API Connection Error"
         mock_client.chat.completions.create.side_effect = ConnectionError(error_msg)
 
         # Test that the function handles the exception with a specific exception type
         with self.assertRaises(ConnectionError):
-            script_generator = ScriptAndImageGenerator(self.test_run_dir)
+            script_generator = ScriptAndImageGenerator(self.test_run_dir, client=mock_client)
             script_generator.run()
 
 

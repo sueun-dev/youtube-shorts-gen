@@ -2,7 +2,7 @@ import inspect
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import main
 from youtube_shorts_gen.content.script_and_image_from_internet import (
@@ -79,12 +79,12 @@ class TestIntegration(unittest.TestCase):
         # Check success handling in the process pipeline output function
         process_pipeline_source = inspect.getsource(main._process_pipeline_output)
         self.assertIn(
-            "content_result.get(RESULT_KEY_SUCCESS, False)", process_pipeline_source
+            "content_result.get(\"success\", False)", process_pipeline_source
         )
         self.assertIn(
-            "upload_result.get(RESULT_KEY_SUCCESS, False)", process_pipeline_source
+            "upload_result.get(\"success\", False)", process_pipeline_source
         )
-        self.assertIn("RESULT_KEY_VIDEO_URL", process_pipeline_source)
+        self.assertIn("final_video_path", process_pipeline_source)
 
         # Verify the main loop structure
         main_source = inspect.getsource(main)
@@ -97,11 +97,15 @@ class TestIntegration(unittest.TestCase):
     @patch.object(ScriptAndImageFromInternet, "run")
     @patch.object(ParagraphProcessor, "process")
     @patch("youtube_shorts_gen.upload.upload_to_youtube.YouTubeUploader.upload")
+    @patch("youtube_shorts_gen.utils.openai_client.get_openai_client")
     def test_internet_content_pipeline(
-        self, mock_upload, mock_processor, mock_script, mock_input
+        self, mock_get_client, mock_upload, mock_processor, mock_script, mock_input
     ):
         """Test the internet content pipeline (option 2)."""
         # Setup mocks
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        
         mock_script.return_value = {
             "story": "Test story from internet",
             "sentences": ["Sentence 1", "Sentence 2"],
