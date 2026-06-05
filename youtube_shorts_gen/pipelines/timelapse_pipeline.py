@@ -10,15 +10,14 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple, Optional
 
 from openai import OpenAI
 
 from youtube_shorts_gen.media.video_assembler import VideoAssembler
-from youtube_shorts_gen.utils.image_utils import overlay_text_on_images
-from youtube_shorts_gen.utils.frame_interpolator import interpolate_between
-from youtube_shorts_gen.utils.openai_image import generate_sequential_images
 from youtube_shorts_gen.upload.upload_to_youtube import YouTubeUploader
+from youtube_shorts_gen.utils.frame_interpolator import interpolate_between
+from youtube_shorts_gen.utils.image_utils import overlay_text_on_images
+from youtube_shorts_gen.utils.openai_image import generate_sequential_images
 
 # Constants
 TIMELAPSE_IMAGES_DIR = "timelapse_images"
@@ -39,10 +38,10 @@ def run_timelapse_pipeline(
     transition_duration: float = DEFAULT_TRANSITION_DURATION,
     frame_duration: float = DEFAULT_FRAME_DURATION,
     transition_type: str = DEFAULT_TRANSITION_TYPE,
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     upload_to_youtube: bool = True,
-    video_title: Optional[str] = None,
-    video_description: Optional[str] = None,
+    video_title: str | None = None,
+    video_description: str | None = None,
     num_inter_frames: int =3,  # Use at most 3 interpolated frames
     inter_frame_duration: float = 0.033,  # 30 fps -> ~0.099s total for 3 frames
     main_frame_duration: float = 0.5,
@@ -92,8 +91,8 @@ def run_timelapse_pipeline(
     image_paths = overlay_text_on_images(image_paths, [str(y) for y in years], overlay_dir)
 
     # Insert interpolated frames between each consecutive pair for smoother motion
-    enriched_image_paths: List[str] = []
-    frame_durations: List[float] = []
+    enriched_image_paths: list[str] = []
+    frame_durations: list[float] = []
     for idx in range(len(image_paths) - 1):
         # Original yearly image
         enriched_image_paths.append(image_paths[idx])
@@ -148,8 +147,8 @@ def run_timelapse_pipeline(
 
 
 def _generate_year_prompts(
-    base_prompt: str, years: List[int], images_dir: Path
-) -> Tuple[List[str], List[Path]]:
+    base_prompt: str, years: list[int], images_dir: Path
+) -> tuple[list[str], list[Path]]:
     """Generate prompts and output paths for each year.
     
     Args:
@@ -182,13 +181,13 @@ def _generate_year_prompts(
 
 def _create_timelapse_video(
     run_dir: Path,
-    image_paths: List[str],
+    image_paths: list[str],
     fps: int,
     transition_duration: float,
     frame_duration: float,
     transition_type: str,
-    music_path: Optional[str],
-    frame_durations: Optional[List[float]] = None,
+    music_path: str | None,
+    frame_durations: list[float] | None = None,
 ) -> str:
     """Create a time-lapse video from the generated images with smooth transitions.
     
@@ -230,7 +229,7 @@ def _upload_to_youtube(
     video_path: str, 
     title: str, 
     description: str,
-    tags: Optional[List[str]] = None
+    tags: list[str] | None = None
 ) -> bool:
     """Upload the video to YouTube.
     
@@ -271,10 +270,8 @@ def _upload_to_youtube(
             if video_url:
                 logging.info("Video successfully uploaded to YouTube: %s", video_url)
                 return True
-            else:
-                logging.error("Failed to upload video to YouTube")
-                return False
-            
+            logging.error("Failed to upload video to YouTube")
+            return False
     except Exception as e:
         logging.error("Error uploading to YouTube: %s", e)
         return False

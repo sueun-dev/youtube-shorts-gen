@@ -10,8 +10,8 @@ from youtube_shorts_gen.scrapers.dogdrip import fetch_dogdrip_content
 from youtube_shorts_gen.utils.config import IMAGE_PROMPT_TEMPLATE
 from youtube_shorts_gen.utils.openai_image import (
     generate_image as generate_openai_image,
-    generate_sequential_images,
 )
+from youtube_shorts_gen.utils.openai_image import generate_sequential_images
 
 nltk.download("punkt", quiet=True)
 

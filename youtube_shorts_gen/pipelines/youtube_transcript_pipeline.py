@@ -9,10 +9,10 @@ from typing import Any
 from youtube_shorts_gen.content.transcript_segmenter import TranscriptSegmenter
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
 from youtube_shorts_gen.media.video_assembler import VideoAssembler
-from youtube_shorts_gen.utils.config import MAX_RUNWAY_VIDEOS_PER_SEGMENT
 from youtube_shorts_gen.scrapers.youtube_transcript_scraper import (
     YouTubeTranscriptScraper,
 )
+from youtube_shorts_gen.utils.config import MAX_RUNWAY_VIDEOS_PER_SEGMENT
 from youtube_shorts_gen.utils.openai_client import (
     get_openai_client,  # remain for run function to create client
 )

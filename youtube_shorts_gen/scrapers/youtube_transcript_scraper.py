@@ -15,9 +15,14 @@ class YouTubeTranscriptScraper(ContentScraper):
         self.youtube_url = ""
         self.transcript_api = YouTubeTranscriptApi()
 
-    def fetch_content(self, youtube_url: str) -> str | None:
-        """Returns the full transcript or ``None`` if unavailable."""
-        return self.fetch_transcript(youtube_url)
+    def fetch_content(self) -> list[str]:
+        """Return the stored video's transcript as a single-item list.
+
+        Satisfies the :class:`ContentScraper` interface. Callers that need the
+        raw transcript string should use :meth:`fetch_transcript` directly.
+        """
+        transcript = self.fetch_transcript(self.youtube_url)
+        return [transcript] if transcript else []
 
     def fetch_transcript(self, youtube_url: str) -> str | None:
         """Fetches and combines all transcript segments for a YouTube video."""
@@ -69,7 +74,7 @@ class YouTubeTranscriptScraper(ContentScraper):
             return len(obj) > 0
         return True
 
-    def _try_auto_captions(self, video_id: str):
+    def _try_auto_captions(self, video_id: str) -> Any:
         """
         Prefers auto-generated captions; otherwise returns first non-empty transcript.
         """

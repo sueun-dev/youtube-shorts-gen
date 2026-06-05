@@ -7,11 +7,12 @@ existed in three separate places. Use :func:`generate_image` for single images o
 from __future__ import annotations
 
 import base64
-import logging
-from pathlib import Path
+import contextlib
 import hashlib
 import json
-from typing import TYPE_CHECKING, List, Optional, Dict, Any
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 from youtube_shorts_gen.utils.config import (
     OPENAI_IMAGE_MODEL,
@@ -33,7 +34,7 @@ _CACHE_INDEX_FILE = _CACHE_DIR / "index.json"
 # Load existing index
 if _CACHE_INDEX_FILE.exists():
     try:
-        _CACHE_INDEX: Dict[str, str] = json.loads(_CACHE_INDEX_FILE.read_text())
+        _CACHE_INDEX: dict[str, str] = json.loads(_CACHE_INDEX_FILE.read_text())
     except json.JSONDecodeError:
         _CACHE_INDEX = {}
 else:
@@ -43,7 +44,7 @@ def _make_cache_key(prompt: str, size: str, quality: str, model: str) -> str:
     """Create a stable hash key for an image generation request."""
     return hashlib.sha256(f"{model}|{size}|{quality}|{prompt}".encode()).hexdigest()
 
-def _get_cached_path(key: str) -> Optional[Path]:
+def _get_cached_path(key: str) -> Path | None:
     path_str = _CACHE_INDEX.get(key)
     if path_str:
         path = Path(path_str)
@@ -53,11 +54,9 @@ def _get_cached_path(key: str) -> Optional[Path]:
 
 def _store_cache(key: str, image_path: Path) -> None:
     _CACHE_INDEX[key] = str(image_path)
-    # Persist index to disk (best-effort)
-    try:
+    # Persist index to disk (best-effort); caching should never crash
+    with contextlib.suppress(Exception):
         _CACHE_INDEX_FILE.write_text(json.dumps(_CACHE_INDEX))
-    except Exception:  # pragma: no cover – caching should never crash
-        pass
 
 
 def _resolve_size() -> str:
@@ -100,8 +99,8 @@ def generate_image(client: OpenAI, prompt: str, output_path: Path) -> str:
         response = client.images.generate(
             model=OPENAI_IMAGE_MODEL,
             prompt=prompt,
-            size=_resolve_size(),
-            quality=OPENAI_IMAGE_QUALITY,
+            size=cast(Any, _resolve_size()),
+            quality=cast(Any, OPENAI_IMAGE_QUALITY),
             n=1,
         )
 
@@ -122,8 +121,8 @@ def generate_image(client: OpenAI, prompt: str, output_path: Path) -> str:
 
 
 def generate_sequential_images(
-    client: OpenAI, prompts: List[str], output_paths: List[Path]
-) -> List[str]:
+    client: OpenAI, prompts: list[str], output_paths: list[Path]
+) -> list[str]:
     """Generate a sequence of images with visual continuity using OpenAI's multi-turn API.
     
     This function creates a series of images where each new image builds upon the previous one,
@@ -142,9 +141,9 @@ def generate_sequential_images(
         return [""] * len(output_paths) if output_paths else []
         
     image_paths = []
-    previous_image_id: Optional[str] = None
-    
-    for i, (prompt, output_path) in enumerate(zip(prompts, output_paths)):
+    previous_image_id: str | None = None
+
+    for prompt, output_path in zip(prompts, output_paths, strict=False):
         try:
             # Use OpenAI multi-turn image generation (gpt-image-1) for frame-to-frame consistency
             cache_key = _make_cache_key(prompt, _resolve_size(), OPENAI_IMAGE_QUALITY, OPENAI_IMAGE_MODEL)
@@ -156,7 +155,7 @@ def generate_sequential_images(
                 previous_image_id = None  # Cannot pass ID; but style consistency via cache
                 continue
 
-            generate_kwargs: Dict[str, Any] = {
+            generate_kwargs: dict[str, Any] = {
                 "model": OPENAI_IMAGE_MODEL,
                 "prompt": prompt,
                 "size": _resolve_size(),

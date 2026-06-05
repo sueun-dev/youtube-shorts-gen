@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Set up logging
 log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

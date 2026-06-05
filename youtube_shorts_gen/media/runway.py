@@ -35,6 +35,7 @@ class VideoGenerator:
             raise ValueError("RUNWAY_API_KEY is not set in environment variables")
         os.environ["RUNWAYML_API_SECRET"] = RUNWAY_API_KEY
         self.client = RunwayML()
+        self.current_video_id = 0
 
     def _image_to_data_uri(self, image_path: str) -> str:
         """Convert an image to a base64 data URI.
@@ -96,7 +97,12 @@ class VideoGenerator:
 
         return runway_prompt
 
-    def generate(self, image_path: str = None, prompt_text: str = None, duration: float = 5.0) -> str:
+    def generate(
+        self,
+        image_path: str | None = None,
+        prompt_text: str | None = None,
+        duration: float = 5.0,
+    ) -> str:
         """Generate a video from an image and prompt using RunwayML.
 
         Args:
@@ -117,12 +123,12 @@ class VideoGenerator:
         self.current_video_id = int(time.time() * 1000) % 10000
         # Handle default paths for backward compatibility
         if image_path is None:
-            image_path = self.run_dir / "story_image.png"
+            image_file = self.run_dir / "story_image.png"
         else:
-            image_path = Path(image_path)
+            image_file = Path(image_path)
 
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image file not found: {image_path}")
+        if not image_file.exists():
+            raise FileNotFoundError(f"Image file not found: {image_file}")
             
         # Get prompt text either from parameter or default file
         if prompt_text is None:
@@ -137,7 +143,7 @@ class VideoGenerator:
         runway_prompt = self._create_runway_prompt(story_text)
 
         # Convert image to data URI
-        image_data_uri = self._image_to_data_uri(str(image_path))
+        image_data_uri = self._image_to_data_uri(str(image_file))
 
         # Send request to RunwayML with fixed duration (Runway API limit)
         # The target duration parameter is stored but not used here
@@ -167,8 +173,7 @@ class VideoGenerator:
             video_url = task.output[0]
             output_path = self._download_video(video_url)
             return str(output_path)
-        else:
-            raise RuntimeError(f"Video generation failed: status = {task.status}")
+        raise RuntimeError(f"Video generation failed: status = {task.status}")
 
     def _download_video(self, video_url: str) -> Path:
         """Download a video from URL and save it to the run directory.
@@ -189,14 +194,13 @@ class VideoGenerator:
         # Use the current_video_id to create a unique filename
         output_path = videos_dir / f"runway_video_{self.current_video_id}.mp4"
 
-        response = requests.get(video_url, stream=True)
-        if response.status_code == 200:
+        with requests.get(video_url, stream=True) as response:
+            if response.status_code != 200:
+                raise ConnectionError(
+                    f"Video download failed: status code = {response.status_code}"
+                )
             with open(output_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            logging.info("Video download complete: %s", output_path)
-            return output_path
-        else:
-            raise ConnectionError(
-                f"Video download failed: status code = {response.status_code}"
-            )
+        logging.info("Video download complete: %s", output_path)
+        return output_path

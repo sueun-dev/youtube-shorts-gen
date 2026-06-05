@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import List
 
 import cv2  # type: ignore
 import numpy as np
@@ -34,7 +33,7 @@ def interpolate_between(
     img2_path: str | Path,
     num_inter_frames: int = 32,
     output_dir: str | Path | None = None,
-) -> List[str]:
+) -> list[str]:
     """Generate *num_inter_frames* images between *img1* and *img2*.
 
     Returns list of output image paths (in order). If interpolation fails,
@@ -61,7 +60,7 @@ def interpolate_between(
         # Resize the second image to match the first
         img1 = cv2.resize(img1, (img0.shape[1], img0.shape[0]))
 
-    outputs: List[str] = []
+    outputs: list[str] = []
     for i in range(1, num_inter_frames + 1):
         # Calculate blending factor
         alpha = i / (num_inter_frames + 1)

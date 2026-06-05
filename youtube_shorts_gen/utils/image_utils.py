@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -61,7 +61,7 @@ def overlay_text_on_images(image_paths: Sequence[str], texts: Sequence[str], out
         except Exception:
             continue
 
-    for img_path, text in zip(image_paths, texts):
+    for img_path, text in zip(image_paths, texts, strict=False):
         try:
             with Image.open(img_path).convert("RGBA") as im:
                 draw = ImageDraw.Draw(im)
@@ -70,14 +70,8 @@ def overlay_text_on_images(image_paths: Sequence[str], texts: Sequence[str], out
                 font = ImageFont.truetype(base_font_path, dynamic_font_size) if base_font_path else _load_font(dynamic_font_size)
                 stroke_width = max(2, dynamic_font_size // 20)
                 # Pillow 10 removed textsize; use textbbox for accurate dimensions
-                # If default font (fixed small size), dynamically increase font using heuristic
-                if isinstance(font, ImageFont.ImageFont) and font == ImageFont.load_default():
-                    # Basic heuristic to scale using multiple draws
-                    scale_factor = font_size // 10  # crude scaling
-                    text_scaled = " ".join(list(text)) * scale_factor  # widen artificially
                 bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
                 x = (im.width - text_width) // 2
                 y = 20  # padding from top
                 # Draw the main text in white with no background

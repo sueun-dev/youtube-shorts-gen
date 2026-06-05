@@ -20,7 +20,6 @@ from youtube_shorts_gen.content.script_and_image_from_internet import (
     ScriptAndImageFromInternet,
 )
 from youtube_shorts_gen.media.paragraph_processor import ParagraphProcessor
-from youtube_shorts_gen.media.text_processor import TextProcessor
 
 
 class TestVideoCreationPipeline(unittest.TestCase):

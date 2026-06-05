@@ -1,12 +1,13 @@
 """Tests for the YouTube transcript pipeline."""
 
-from unittest.mock import patch, MagicMock
-import pytest
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
 from youtube_shorts_gen.content.transcript_segmenter import TranscriptSegmenter
 from youtube_shorts_gen.pipelines.youtube_transcript_pipeline import (
     run_youtube_transcript_pipeline,
-    YouTubeTranscriptScraper,
 )
 from youtube_shorts_gen.scrapers.youtube_transcript_scraper import (
     YouTubeTranscriptScraper,
@@ -177,7 +178,8 @@ def test_transcript_segmenter(mock_openai_class, mock_segmenter_class):
     
     # Create a real segmenter to test the initialization
     segmenter = TranscriptSegmenter(client=mock_openai)
-    
+    assert segmenter.client is mock_openai
+
     # Test with mock
     transcript = "This is a test transcript."
     segments = mock_segmenter.segment_transcript(transcript)

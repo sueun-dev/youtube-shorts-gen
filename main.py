@@ -5,8 +5,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
-
 from youtube_shorts_gen.pipelines.ai_content_pipeline import run_ai_content_pipeline
 from youtube_shorts_gen.pipelines.internet_content_pipeline import (
     run_internet_content_pipeline,
@@ -214,11 +212,10 @@ def _run_timelapse_pipeline(run_dir: str) -> dict[str, Any]:
                 "final_video_path": video_path,
                 "message": f"Time-lapse video created successfully: {video_path}"
             }
-        else:
-            return {
-                "success": False,
-                "error": "Failed to create time-lapse video"
-            }
+        return {
+            "success": False,
+            "error": "Failed to create time-lapse video"
+        }
     
     except Exception as e:
         logging.exception("Error in time-lapse pipeline: %s", e)

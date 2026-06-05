@@ -1,7 +1,9 @@
 import logging
 import textwrap
+from typing import Any, cast
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 
 class TranscriptSegmenter:
@@ -27,7 +29,7 @@ class TranscriptSegmenter:
 
     def _chat_completion(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         *,
         temperature: float,
         max_tokens: int,
@@ -36,7 +38,7 @@ class TranscriptSegmenter:
         try:
             response = self.client.chat.completions.create(
                 model=self._MODEL,
-                messages=messages,
+                messages=cast(list[ChatCompletionMessageParam], messages),
                 temperature=temperature,
                 max_tokens=max_tokens,
             )

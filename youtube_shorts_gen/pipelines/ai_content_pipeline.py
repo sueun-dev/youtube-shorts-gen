@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from openai import OpenAI
+
 from youtube_shorts_gen.content.script_and_image_gen import ScriptAndImageGenerator
 from youtube_shorts_gen.media.runway import VideoGenerator
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
@@ -11,15 +13,20 @@ from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 # === Helper functions (Single Responsibility) ===
 
-def _generate_script_and_images(run_dir: str, client) -> dict[str, Any]:
-    """Generate script and images using the LLM and DALLE."""
+def _generate_script_and_images(run_dir: str, client: OpenAI) -> dict[str, Any]:
+    """Generate script and images using the LLM and DALLE.
+
+    ``ScriptAndImageGenerator.run`` writes the story and a single image to
+    ``run_dir`` and returns nothing, raising on failure. We surface the produced
+    artifact paths so downstream steps and callers can reference them.
+    """
     generator = ScriptAndImageGenerator(run_dir, client)
-    result: dict[str, Any] = generator.run()
-    logging.info(
-        "[AI Pipeline] Generated %d images for story",
-        len(result.get("image_paths", []))
-    )
-    return result
+    generator.run()
+    logging.info("[AI Pipeline] Generated story and image for run %s", run_dir)
+    return {
+        "story_path": str(generator.prompt_path),
+        "image_paths": [str(generator.image_path)],
+    }
 
 
 def _generate_ai_video(run_dir: str) -> dict[str, Any]:

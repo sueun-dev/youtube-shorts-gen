@@ -1,9 +1,8 @@
 import logging
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 from mutagen.mp3 import MP3
-from openai import OpenAI
 
 from youtube_shorts_gen.content.script_and_image_from_internet import (
     ScriptAndImageFromInternet,
@@ -14,9 +13,7 @@ from youtube_shorts_gen.media.video_assembler import VideoAssembler
 from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 
-
-
-def _generate_tts_and_get_durations(run_dir: str, sentences: list[str]) -> Tuple[list[str], list[float]]:
+def _generate_tts_and_get_durations(run_dir: str, sentences: list[str]) -> tuple[list[str], list[float]]:
     """Generate TTS audio for each sentence and measure their durations.
     
     Args:
@@ -78,7 +75,7 @@ def _generate_synced_video_segments(
     looped_videos_dir.mkdir(exist_ok=True)
     
     for i, (sentence, image_path, audio_path, duration) in enumerate(
-        zip(sentences, image_paths, audio_paths, audio_durations)
+        zip(sentences, image_paths, audio_paths, audio_durations, strict=False)
     ):
         try:
             # Generate base silent video with Runway (will be fixed duration, e.g., 4-5 seconds)
