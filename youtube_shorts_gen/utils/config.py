@@ -1,8 +1,9 @@
-"""Configuration module for the YouTube Shorts generator.
+"""Central configuration for the YouTube Shorts generator.
 
-This module contains all configuration parameters, constants, and templates used
-throughout the YouTube Shorts generator application. It handles environment
-variables, API keys, model configuration, and content generation templates.
+All tunable parameters, API keys, model identifiers, file names, and content
+templates live here so the rest of the codebase never hard-codes magic values.
+Environment variables (loaded from a local ``.env`` file) override the defaults
+where it makes sense.
 """
 
 import os
@@ -10,35 +11,141 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from a local .env file, if present.
 load_dotenv()
 
-# API Keys
+
+# --------------------------------------------------------------------------- #
+# API keys
+# --------------------------------------------------------------------------- #
 OPENAI_API_KEY: Final[str] = os.getenv("OPENAI_API_KEY", "")
 RUNWAY_API_KEY: Final[str] = os.getenv("RUNWAY_API_KEY", "")
+ELEVENLABS_API_KEY: Final[str] = os.getenv("ELEVENLABS_API_KEY", "")
 
-# Model Configuration
-OPENAI_CHAT_MODEL: Final[str] = "gpt-4o-mini-2024-07-18"
-OPENAI_IMAGE_MODEL: Final[str] = "gpt-image-1"
 
-# Validate and set image size
-_IMAGE_SIZES = {"1024x1024", "1792x1024", "1024x1792"}
-_OPENAI_IMAGE_SIZE = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")
-if _OPENAI_IMAGE_SIZE not in _IMAGE_SIZES:
-    error_msg = f"Invalid OPENAI_IMAGE_SIZE: {_OPENAI_IMAGE_SIZE}."
-    error_msg += f" Must be one of {_IMAGE_SIZES}"
-    raise ValueError(error_msg)
-OPENAI_IMAGE_SIZE: Final[str] = _OPENAI_IMAGE_SIZE
+# --------------------------------------------------------------------------- #
+# OpenAI model configuration
+# --------------------------------------------------------------------------- #
+OPENAI_CHAT_MODEL: Final[str] = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini-2024-07-18")
+OPENAI_IMAGE_MODEL: Final[str] = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 
-# Validate and set image quality
-_IMAGE_QUALITIES = {"medium", "high", "low"}
-_OPENAI_IMAGE_QUALITY = os.getenv("OPENAI_IMAGE_QUALITY", "medium").lower()
-if _OPENAI_IMAGE_QUALITY not in _IMAGE_QUALITIES:
-    error_msg = f"Invalid OPENAI_IMAGE_QUALITY: {_OPENAI_IMAGE_QUALITY}."
-    error_msg += f" Must be one of {_IMAGE_QUALITIES}"
-    raise ValueError(error_msg)
-OPENAI_IMAGE_QUALITY: Final[str] = _OPENAI_IMAGE_QUALITY
-# Content Elements for Story Generation
+
+def _validate_choice(name: str, value: str, allowed: set[str]) -> str:
+    """Return ``value`` if it is in ``allowed``; otherwise raise ``ValueError``."""
+    if value not in allowed:
+        raise ValueError(f"Invalid {name}: {value!r}. Must be one of {sorted(allowed)}")
+    return value
+
+
+IMAGE_SIZES: Final[set[str]] = {"1024x1024", "1792x1024", "1024x1792"}
+OPENAI_IMAGE_SIZE: Final[str] = _validate_choice(
+    "OPENAI_IMAGE_SIZE", os.getenv("OPENAI_IMAGE_SIZE", "1024x1024"), IMAGE_SIZES
+)
+
+IMAGE_QUALITIES: Final[set[str]] = {"low", "medium", "high"}
+OPENAI_IMAGE_QUALITY: Final[str] = _validate_choice(
+    "OPENAI_IMAGE_QUALITY",
+    os.getenv("OPENAI_IMAGE_QUALITY", "medium").lower(),
+    IMAGE_QUALITIES,
+)
+
+# Chat generation defaults
+CHAT_TEMPERATURE_DEFAULT: Final[float] = float(os.getenv("CHAT_TEMPERATURE", "0.9"))
+CHAT_MAX_TOKENS_DEFAULT: Final[int] = int(os.getenv("CHAT_MAX_TOKENS", "300"))
+
+
+# --------------------------------------------------------------------------- #
+# ElevenLabs (text-to-speech) configuration
+# --------------------------------------------------------------------------- #
+ELEVENLABS_VOICE_ID: Final[str] = os.getenv(
+    "ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"
+)
+ELEVENLABS_MODEL: Final[str] = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
+ELEVENLABS_OUTPUT_FORMAT: Final[str] = os.getenv(
+    "ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128"
+)
+
+
+# --------------------------------------------------------------------------- #
+# Runway (image-to-video) configuration
+# --------------------------------------------------------------------------- #
+RUNWAY_MODEL: Final[str] = os.getenv("RUNWAY_MODEL", "gen3a_turbo")
+RUNWAY_ASPECT_RATIO: Final[str] = os.getenv("RUNWAY_ASPECT_RATIO", "768:1280")
+# Gen-3 Alpha Turbo supports clips up to 5 seconds.
+RUNWAY_MAX_DURATION_SECONDS: Final[float] = 5.0
+RUNWAY_DEFAULT_DURATION_SECONDS: Final[float] = 5.0
+# How long to wait between task-status polls, and how many polls before giving up.
+RUNWAY_POLL_INTERVAL_SECONDS: Final[int] = int(
+    os.getenv("RUNWAY_POLL_INTERVAL_SECONDS", "20")
+)
+RUNWAY_MAX_POLL_ATTEMPTS: Final[int] = int(os.getenv("RUNWAY_MAX_POLL_ATTEMPTS", "30"))
+# Maximum number of Runway AI videos to generate per segment (to control cost).
+MAX_RUNWAY_VIDEOS_PER_SEGMENT: Final[int] = int(
+    os.getenv("MAX_RUNWAY_VIDEOS_PER_SEGMENT", "4")
+)
+
+
+# --------------------------------------------------------------------------- #
+# Video / FFmpeg encoding configuration
+# --------------------------------------------------------------------------- #
+# Vertical 9:16 Shorts resolution (width, height).
+VIDEO_RESOLUTION: Final[tuple[int, int]] = (1080, 1920)
+VIDEO_FPS: Final[int] = 30
+FFMPEG_VIDEO_CODEC: Final[str] = "libx264"
+FFMPEG_AUDIO_CODEC: Final[str] = "aac"
+FFMPEG_AUDIO_BITRATE: Final[str] = "192k"
+FFMPEG_CRF: Final[str] = "23"
+FFMPEG_PRESET: Final[str] = "medium"
+# Subprocess timeouts (seconds).
+FFPROBE_TIMEOUT_SECONDS: Final[int] = 30
+FFMPEG_SEGMENT_TIMEOUT_SECONDS: Final[int] = 60
+FFMPEG_CONCAT_TIMEOUT_SECONDS: Final[int] = 120
+
+
+# --------------------------------------------------------------------------- #
+# Text-processing thresholds
+# --------------------------------------------------------------------------- #
+# Hard cap on how many paragraphs/segments a single Short is built from.
+MAX_PARAGRAPHS_FOR_SHORTS: Final[int] = 8
+# A paragraph longer than this many characters gets summarised before narration.
+SUMMARIZE_THRESHOLD_CHARS: Final[int] = 300
+# Transcript segmentation.
+TRANSCRIPT_WORDS_PER_CHUNK: Final[int] = 500
+TRANSCRIPT_MIN_TRAILING_CHUNK_WORDS: Final[int] = 100
+TRANSCRIPT_MAX_CONTEXT_SUMMARIES: Final[int] = 2
+TRANSCRIPT_MIN_LENGTH_CHARS: Final[int] = 30
+# Internet-story sentence splitting.
+MAX_STORY_SENTENCES: Final[int] = 8
+MIN_SENTENCE_CHARS: Final[int] = 10
+
+
+# --------------------------------------------------------------------------- #
+# Shared output file names
+# --------------------------------------------------------------------------- #
+FINAL_VIDEO_FILENAME: Final[str] = "final_story_video.mp4"
+STORY_PROMPT_FILENAME: Final[str] = "story_prompt.txt"
+STORY_AUDIO_FILENAME: Final[str] = "story_audio.mp3"
+OUTPUT_VIDEO_FILENAME: Final[str] = "output_story_video.mp4"
+
+
+# --------------------------------------------------------------------------- #
+# YouTube upload configuration
+# --------------------------------------------------------------------------- #
+# YouTube category 22 == "People & Blogs".
+YOUTUBE_CATEGORY_ID: Final[str] = os.getenv("YOUTUBE_CATEGORY_ID", "22")
+YOUTUBE_PRIVACY_STATUS: Final[str] = os.getenv("YOUTUBE_PRIVACY_STATUS", "public")
+YOUTUBE_DEFAULT_TAGS: Final[list[str]] = [
+    "AI short",
+    "YouTube Shorts",
+    "OpenAI",
+    "RunwayML",
+    "ElevenLabs",
+]
+
+
+# --------------------------------------------------------------------------- #
+# Content elements for AI story generation
+# --------------------------------------------------------------------------- #
 ANIMALS: Final[list[str]] = [
     "Cat",
     "Squid",
@@ -64,6 +171,7 @@ HUMANS: Final[list[str]] = [
     "Girl Covered in Stickers",
     "Time-Traveling Mime",
 ]
+
 # https://www.youtube.com/watch?v=azF-fJCceMM
 BACKGROUNDS: Final[list[str]] = [
     "Tralala World",
@@ -104,28 +212,36 @@ ACTIONS: Final[list[str]] = [
     "Balance a piano on one toe",
 ]
 
-# Image Generation Prompt Template
+
+# --------------------------------------------------------------------------- #
+# Prompt templates
+# --------------------------------------------------------------------------- #
 IMAGE_PROMPT_TEMPLATE: Final[str] = (
     "Create an ultra-photorealistic, vertically framed cinematic scene inspired by "
     'the story: "{story}". '
     "Focus on a realistic everyday moment—objects resting naturally under gravity. "
-    "Use soft, natural lighting (golden hour or diffused daylight) with gentle global illumination. "
-    "Include realistic textures like glass, metal, fabric, and skin, without excessive micro‑detail. "
-    "Choose a neutral camera angle (eye‑level or slight low‑angle), as if shot on a full‑frame DSLR (35mm f/1.8). "
+    "Use soft, natural lighting (golden hour or diffused daylight) with gentle global "
+    "illumination. "
+    "Include realistic textures like glass, metal, fabric, and skin, without excessive "
+    "micro-detail. "
+    "Choose a neutral camera angle (eye-level or slight low-angle), as if shot on a "
+    "full-frame DSLR (35mm f/1.8). "
     "Apply subtle depth of field for natural background blur. "
-    "No surreal or levitating elements—everything grounded in real‑world physics. "
+    "No surreal or levitating elements—everything grounded in real-world physics. "
     "No text—tell the story purely through the visual."
 )
 
+# Template for the per-line image prompt used by the YouTube-transcript pipeline
+# (Korean political-news framing, matching the transcript segmenter prompts).
+NEWS_SCENE_PROMPT_TEMPLATE: Final[str] = "정치 뉴스 장면: {text}"
 
-# Runway Video Generation Prompt Template
+# Runway video-generation prompt template.
 RUNWAY_PROMPT_TEMPLATE: Final[str] = (
-    "{camera_movement}: The scene features {subject} with realistic details and natural lighting. "
-    "The subject {movement_type} with subtle and minimal motion. "
+    "{camera_movement}: The scene features {subject} with realistic details and "
+    "natural lighting. The subject {movement_type} with subtle and minimal motion. "
     "The environment is detailed with realistic textures and cinematic lighting."
 )
 
-# Runway Camera Movements
 RUNWAY_CAMERA_MOVEMENTS: Final[list[str]] = [
     "Low angle static shot",
     "High angle static shot",
@@ -142,7 +258,6 @@ RUNWAY_CAMERA_MOVEMENTS: Final[list[str]] = [
     "Realistic documentary shot",
 ]
 
-# Runway Movement Types
 RUNWAY_MOVEMENT_TYPES: Final[list[str]] = [
     "grows",
     "emerges",
@@ -152,19 +267,15 @@ RUNWAY_MOVEMENT_TYPES: Final[list[str]] = [
     "unfolds",
 ]
 
-# Fallback Image (1x1 transparent PNG in base64)
+# Fallback image: a 1x1 transparent PNG encoded as base64.
 EMPTY_IMAGE_B64: Final[str] = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 )
 
-# Runtime Configuration
+
+# --------------------------------------------------------------------------- #
+# Runtime configuration
+# --------------------------------------------------------------------------- #
 RUNS_BASE_DIR: Final[str] = "runs"
-SLEEP_SECONDS: Final[int] = 120
-
-# Runway Configuration
-# Maximum number of Runway AI videos to generate per segment (to control API costs)
-MAX_RUNWAY_VIDEOS_PER_SEGMENT: Final[int] = int(os.getenv("MAX_RUNWAY_VIDEOS_PER_SEGMENT", "4"))
-
-# Chat Generation Defaults
-CHAT_TEMPERATURE_DEFAULT: Final[float] = float(os.getenv("CHAT_TEMPERATURE", "0.9"))
-CHAT_MAX_TOKENS_DEFAULT: Final[int] = int(os.getenv("CHAT_MAX_TOKENS", "300"))
+# How long main.py sleeps between successive pipeline runs.
+SLEEP_SECONDS: Final[int] = int(os.getenv("SLEEP_SECONDS", "120"))

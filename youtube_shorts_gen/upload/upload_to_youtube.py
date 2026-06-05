@@ -4,12 +4,20 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 from youtube_shorts_gen.upload.upload_history import UploadHistory
+from youtube_shorts_gen.utils.config import (
+    FINAL_VIDEO_FILENAME,
+    STORY_PROMPT_FILENAME,
+    YOUTUBE_CATEGORY_ID,
+    YOUTUBE_DEFAULT_TAGS,
+    YOUTUBE_PRIVACY_STATUS,
+)
 
 # YouTube API scopes required for uploading videos
 SCOPES: Final[list[str]] = ["https://www.googleapis.com/auth/youtube.upload"]
@@ -39,8 +47,8 @@ class YouTubeUploader:
     def __init__(
         self,
         run_dir: str,
-        category_id: str = "22",  # 22 = People & Blogs in YouTube
-        privacy_status: str = "public",
+        category_id: str = YOUTUBE_CATEGORY_ID,
+        privacy_status: str = YOUTUBE_PRIVACY_STATUS,
         default_tags: list[str] | None = None,
     ):
         """Initialize the YouTube uploader.
@@ -52,21 +60,11 @@ class YouTubeUploader:
             default_tags: Tags to apply to the video
         """
         self.run_dir = Path(run_dir)
-        self.prompt_path = self.run_dir / "story_prompt.txt"
-        self.video_path = self.run_dir / "final_story_video.mp4"
+        self.prompt_path = self.run_dir / STORY_PROMPT_FILENAME
+        self.video_path = self.run_dir / FINAL_VIDEO_FILENAME
         self.category_id = category_id
         self.privacy_status = privacy_status
-
-        # Use default tags if none provided
-        if default_tags is None:
-            default_tags = [
-                "AI short", 
-                "YouTube Shorts", 
-                "OpenAI", 
-                "RunwayML", 
-                "ElevenLabs"
-            ]
-        self.tags = default_tags
+        self.tags = default_tags or YOUTUBE_DEFAULT_TAGS
 
         # Initialize upload history tracker
         self.history = UploadHistory()
@@ -112,8 +110,8 @@ class YouTubeUploader:
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
-                except Exception as e:
-                    logging.error("Error refreshing credentials: %s", e)
+                except RefreshError:
+                    logging.exception("Error refreshing credentials")
                     return None
             else:
                 try:
@@ -126,8 +124,8 @@ class YouTubeUploader:
                     token_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(token_path, "wb") as token:
                         pickle.dump(creds, token)
-                except Exception as e:
-                    logging.error("Error obtaining new credentials: %s", e)
+                except (OSError, ValueError, pickle.PickleError):
+                    logging.exception("Error obtaining new credentials")
                     return None
 
         return creds
@@ -152,7 +150,7 @@ class YouTubeUploader:
 
         # Read story content for video title and description
         story = self.prompt_path.read_text(encoding="utf-8").strip()
-        
+
         # Create title from second line of the story (truncated to 90 chars if needed)
         story_lines = story.split("\n")
         # If there's at least 2 lines, use second line, otherwise use first line
@@ -193,9 +191,14 @@ class YouTubeUploader:
             part="snippet,status", body=body, media_body=media
         )
 
-        response = request.execute()
+        try:
+            response = request.execute()
+        except Exception:
+            logging.exception("YouTube upload failed")
+            return None
+
         video_url = f"https://www.youtube.com/watch?v={response['id']}"
-        logging.info("✅ Uploaded to: %s", video_url)
+        logging.info("Uploaded to: %s", video_url)
 
         # Save this upload to history
         self.history.add_upload(title, video_url, story)

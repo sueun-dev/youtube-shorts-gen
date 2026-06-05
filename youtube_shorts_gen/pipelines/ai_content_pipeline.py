@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from openai import OpenAI
+
 from youtube_shorts_gen.content.script_and_image_gen import ScriptAndImageGenerator
 from youtube_shorts_gen.media.runway import VideoGenerator
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
@@ -11,13 +13,14 @@ from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 # === Helper functions (Single Responsibility) ===
 
-def _generate_script_and_images(run_dir: str, client) -> dict[str, Any]:
-    """Generate script and images using the LLM and DALLE."""
+
+def _generate_script_and_images(run_dir: str, client: OpenAI) -> dict[str, Any]:
+    """Generate script and images using the chat and image models."""
     generator = ScriptAndImageGenerator(run_dir, client)
     result: dict[str, Any] = generator.run()
     logging.info(
         "[AI Pipeline] Generated %d images for story",
-        len(result.get("image_paths", []))
+        len(result.get("image_paths", [])),
     )
     return result
 
@@ -25,7 +28,7 @@ def _generate_script_and_images(run_dir: str, client) -> dict[str, Any]:
 def _generate_ai_video(run_dir: str) -> dict[str, Any]:
     """Generate a base video from the images using Runway."""
     video_generator = VideoGenerator(run_dir)
-    video_path = video_generator.generate()  # Now returns the path to the generated video
+    video_path = video_generator.generate()
     logging.info("[AI Pipeline] Base video generated via Runway: %s", video_path)
     return {"video_path": video_path}
 
@@ -63,31 +66,24 @@ def _build_success_response(
 
 # === Public API ===
 
-def run_ai_content_pipeline(run_dir: str) -> dict:
-    """
-    Run the AI content generation pipeline.
+
+def run_ai_content_pipeline(run_dir: str) -> dict[str, Any]:
+    """Run the AI content generation pipeline.
 
     Args:
-        run_dir: Directory to store all generated files
+        run_dir: Directory to store all generated files.
 
     Returns:
-        Dictionary with pipeline results
+        Dictionary with pipeline results (always contains a ``success`` key).
     """
     logging.info("[AI Pipeline] Starting AI content generation pipeline")
 
     client = get_openai_client()
 
     try:
-        # 1. Script and image generation
         script_result = _generate_script_and_images(run_dir, client)
-
-        # 2. Video generation
         video_result = _generate_ai_video(run_dir)
-
-        # 3. TTS generation
         tts_path = _generate_tts(run_dir)
-
-        # 4. Video-audio synchronisation
         final_video_path = _sync_video_audio(run_dir)
 
         logging.info("[AI Pipeline] Successfully generated content and created video")
@@ -95,6 +91,6 @@ def run_ai_content_pipeline(run_dir: str) -> dict:
         return _build_success_response(
             script_result, video_result, tts_path, final_video_path
         )
-    except Exception as e:
-        logging.exception("[AI Pipeline] Failed: %s", e)
-        return {"success": False, "error": str(e)}
+    except Exception as exc:
+        logging.exception("[AI Pipeline] Failed")
+        return {"success": False, "error": str(exc)}

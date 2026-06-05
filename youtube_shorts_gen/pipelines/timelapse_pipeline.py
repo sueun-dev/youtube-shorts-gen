@@ -1,32 +1,49 @@
 """Pipeline for generating time-lapse videos showing evolution over time.
 
-This module provides functionality to create time-lapse videos that show the
-evolution of a subject (e.g., a car model) over a range of years using
-OpenAI's multi-turn image generation for natural transitions.
+Creates a vertical Short that shows how a subject (e.g. a car model) evolves
+across a range of years, using OpenAI image generation for each year and frame
+interpolation for smooth transitions.
 """
 
 import logging
-import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple, Optional
 
 from openai import OpenAI
 
 from youtube_shorts_gen.media.video_assembler import VideoAssembler
-from youtube_shorts_gen.utils.image_utils import overlay_text_on_images
-from youtube_shorts_gen.utils.frame_interpolator import interpolate_between
-from youtube_shorts_gen.utils.openai_image import generate_sequential_images
 from youtube_shorts_gen.upload.upload_to_youtube import YouTubeUploader
+from youtube_shorts_gen.utils.config import (
+    FINAL_VIDEO_FILENAME,
+    STORY_PROMPT_FILENAME,
+)
+from youtube_shorts_gen.utils.frame_interpolator import interpolate_between
+from youtube_shorts_gen.utils.image_utils import overlay_text_on_images
+from youtube_shorts_gen.utils.openai_image import generate_sequential_images
 
-# Constants
+# Output locations.
 TIMELAPSE_IMAGES_DIR = "timelapse_images"
+TIMELAPSE_ANNOTATED_DIR = "timelapse_images_annotated"
 TIMELAPSE_VIDEO_FILENAME = "timelapse_video.mp4"
-DEFAULT_FPS = 4  # Adjust to control speed of time-lapse
-DEFAULT_TRANSITION_DURATION = 1.0  # Duration of transition between images in seconds (increased)
-DEFAULT_FRAME_DURATION = 1.0  # Duration each frame is shown in seconds
-DEFAULT_TRANSITION_TYPE = "dissolve"  # Transition effect: fade, dissolve, wiperight, etc.
+
+# Playback defaults.
+DEFAULT_FPS = 4
+DEFAULT_TRANSITION_DURATION = 1.0
+DEFAULT_FRAME_DURATION = 1.0
+DEFAULT_TRANSITION_TYPE = "dissolve"
+DEFAULT_NUM_INTER_FRAMES = 3
+DEFAULT_INTER_FRAME_DURATION = 0.033  # ~30 fps for the interpolated frames
+DEFAULT_MAIN_FRAME_DURATION = 0.5
+
+_TIMELAPSE_DEFAULT_TAGS = ["timelapse", "evolution", "ai-generated"]
+
+_YEAR_PROMPT_TEMPLATE = (
+    "Generate a high-quality front view image of {subject} as it appeared in "
+    "{year}. Include full details clearly visible from the front, such as design, "
+    "style, and key features. The image should capture the defining "
+    "characteristics representative of the {year} version of {subject}."
+)
 
 
 def run_timelapse_pipeline(
@@ -39,30 +56,36 @@ def run_timelapse_pipeline(
     transition_duration: float = DEFAULT_TRANSITION_DURATION,
     frame_duration: float = DEFAULT_FRAME_DURATION,
     transition_type: str = DEFAULT_TRANSITION_TYPE,
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     upload_to_youtube: bool = True,
-    video_title: Optional[str] = None,
-    video_description: Optional[str] = None,
-    num_inter_frames: int =3,  # Use at most 3 interpolated frames
-    inter_frame_duration: float = 0.033,  # 30 fps -> ~0.099s total for 3 frames
-    main_frame_duration: float = 0.5,
+    video_title: str | None = None,
+    video_description: str | None = None,
+    num_inter_frames: int = DEFAULT_NUM_INTER_FRAMES,
+    inter_frame_duration: float = DEFAULT_INTER_FRAME_DURATION,
+    main_frame_duration: float = DEFAULT_MAIN_FRAME_DURATION,
 ) -> str:
-
     """Run the time-lapse video generation pipeline.
 
     Args:
-        run_dir: Directory to store generated files
-        client: OpenAI client
-        subject_prompt: Base prompt describing the subject (e.g., "Red Ferrari Car")
-        start_year: Starting year for the time-lapse
-        end_year: Ending year for the time-lapse
-        fps: Frames per second for the output video
-        upload_to_youtube: Whether to upload the final video to YouTube
-        video_title: Title for the YouTube video (optional)
-        video_description: Description for the YouTube video (optional)
+        run_dir: Directory to store generated files.
+        client: An initialised OpenAI client.
+        subject_prompt: Subject to depict (e.g. "Red Ferrari Car").
+        start_year: First year in the time-lapse.
+        end_year: Last year in the time-lapse.
+        fps: Frames per second for the output video.
+        transition_duration: Cross-fade duration between frames (seconds).
+        frame_duration: Default time each frame is shown (seconds).
+        transition_type: FFmpeg xfade transition name.
+        music_path: Optional background music file.
+        upload_to_youtube: Whether to upload the final video.
+        video_title: Optional YouTube title.
+        video_description: Optional YouTube description.
+        num_inter_frames: Interpolated frames inserted between yearly images.
+        inter_frame_duration: Display time for each interpolated frame (seconds).
+        main_frame_duration: Display time for each yearly image (seconds).
 
     Returns:
-        Path to the final video file
+        Path to the final video file, or ``""`` on failure.
     """
     logging.info(
         "Starting time-lapse pipeline for '%s' from %d to %d",
@@ -71,63 +94,34 @@ def run_timelapse_pipeline(
         end_year,
     )
 
-    # Create run directory if it doesn't exist
     run_path = Path(run_dir)
-    run_path.mkdir(parents=True, exist_ok=True)
-
-    # Create images directory
     images_dir = run_path / TIMELAPSE_IMAGES_DIR
-    images_dir.mkdir(exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    overlay_dir = run_path / TIMELAPSE_ANNOTATED_DIR
 
-    # Generate prompts and paths for each year
     years = list(range(start_year, end_year + 1))
     prompts, output_paths = _generate_year_prompts(subject_prompt, years, images_dir)
 
-    # Generate images with natural transitions
     logging.info("Generating %d sequential images...", len(prompts))
     image_paths = generate_sequential_images(client, prompts, output_paths)
-    
-    # Overlay year text on images
-    overlay_dir = run_path / "timelapse_images_annotated"
-    image_paths = overlay_text_on_images(image_paths, [str(y) for y in years], overlay_dir)
+    image_paths = overlay_text_on_images(
+        image_paths, [str(y) for y in years], overlay_dir
+    )
 
-    # Insert interpolated frames between each consecutive pair for smoother motion
-    enriched_image_paths: List[str] = []
-    frame_durations: List[float] = []
-    for idx in range(len(image_paths) - 1):
-        # Original yearly image
-        enriched_image_paths.append(image_paths[idx])
-        frame_durations.append(main_frame_duration)
-        # Interpolated frames
-        inter_frames = interpolate_between(
-            image_paths[idx],
-            image_paths[idx + 1],
-            num_inter_frames=num_inter_frames,
-            output_dir=overlay_dir,
-        )
-        enriched_image_paths.extend(inter_frames)
-        frame_durations.extend([inter_frame_duration] * len(inter_frames))
-    # Append last original image
-    enriched_image_paths.append(image_paths[-1])
-    frame_durations.append(main_frame_duration)
-    image_paths = enriched_image_paths
+    enriched_paths, frame_durations = _build_enriched_frames(
+        image_paths,
+        overlay_dir,
+        num_inter_frames=num_inter_frames,
+        inter_frame_duration=inter_frame_duration,
+        main_frame_duration=main_frame_duration,
+    )
 
-    # Check if all images were generated successfully
-    if "" in image_paths:
-        failed_count = image_paths.count("")
-        logging.warning("%d images failed to generate", failed_count)
-        # Filter out failed generations
-        image_paths = [path for path in image_paths if path]
-    
-    if not image_paths:
-        error_msg = "No images were successfully generated"
-        logging.error(error_msg)
-        raise RuntimeError(error_msg)
+    if not enriched_paths:
+        raise RuntimeError("No images were successfully generated")
 
-        # Create video from images with smooth transitions (custom durations)
     video_path = _create_timelapse_video(
         run_path,
-        enriched_image_paths,
+        enriched_paths,
         fps,
         transition_duration,
         frame_duration,
@@ -135,79 +129,92 @@ def run_timelapse_pipeline(
         music_path,
         frame_durations,
     )
-    
-    # Upload to YouTube if requested
+
     if upload_to_youtube and video_path:
-        _upload_to_youtube(
-            video_path, 
-            title=video_title or f"Evolution of {subject_prompt} ({start_year}-{end_year})",
-            description=video_description or f"Time-lapse showing the evolution of {subject_prompt} from {start_year} to {end_year}."
+        title = video_title or (
+            f"Evolution of {subject_prompt} ({start_year}-{end_year})"
         )
-    
+        description = video_description or (
+            f"Time-lapse showing the evolution of {subject_prompt} "
+            f"from {start_year} to {end_year}."
+        )
+        _upload_to_youtube(video_path, title=title, description=description)
+
     return video_path
 
 
 def _generate_year_prompts(
-    base_prompt: str, years: List[int], images_dir: Path
-) -> Tuple[List[str], List[Path]]:
-    """Generate prompts and output paths for each year.
-    
-    Args:
-        base_prompt: Base prompt describing the subject
-        years: List of years to generate images for
-        images_dir: Directory to store the images
-        
-    Returns:
-        Tuple of (prompts, output_paths)
-    """
-    prompts = []
-    output_paths = []
-    
-    for year in years:
-        # Create a prompt that includes the year
-        prompt = (
-            f"Generate a high-quality front view image of {base_prompt} as it appeared in {year}. "
-            f"Include full details clearly visible from the front, such as design, style, and key features. "
-            f"The image should capture the defining characteristics representative of the {year} version of {base_prompt}."
-        )
-        
-        # Define the output path for this year's image
-        output_path = images_dir / f"{year}.png"
-        
-        prompts.append(prompt)
-        output_paths.append(output_path)
-    
+    base_prompt: str, years: list[int], images_dir: Path
+) -> tuple[list[str], list[Path]]:
+    """Build the per-year image prompts and their output paths."""
+    prompts = [
+        _YEAR_PROMPT_TEMPLATE.format(subject=base_prompt, year=year) for year in years
+    ]
+    output_paths = [images_dir / f"{year}.png" for year in years]
     return prompts, output_paths
+
+
+def _build_enriched_frames(
+    image_paths: list[str],
+    overlay_dir: Path,
+    *,
+    num_inter_frames: int,
+    inter_frame_duration: float,
+    main_frame_duration: float,
+) -> tuple[list[str], list[float]]:
+    """Insert interpolated frames between consecutive yearly images.
+
+    Returns aligned lists of frame paths and per-frame display durations, with
+    any failed (empty-string) image paths removed.
+    """
+    enriched_paths: list[str] = []
+    frame_durations: list[float] = []
+
+    for idx in range(len(image_paths) - 1):
+        enriched_paths.append(image_paths[idx])
+        frame_durations.append(main_frame_duration)
+        inter_frames = interpolate_between(
+            image_paths[idx],
+            image_paths[idx + 1],
+            num_inter_frames=num_inter_frames,
+            output_dir=overlay_dir,
+        )
+        enriched_paths.extend(inter_frames)
+        frame_durations.extend([inter_frame_duration] * len(inter_frames))
+
+    if image_paths:
+        enriched_paths.append(image_paths[-1])
+        frame_durations.append(main_frame_duration)
+
+    # Drop any frames whose generation failed, keeping durations aligned.
+    pairs = zip(enriched_paths, frame_durations, strict=True)
+    cleaned = [(p, d) for p, d in pairs if p]
+    failed = len(enriched_paths) - len(cleaned)
+    if failed:
+        logging.warning("%d frames failed to generate and were skipped", failed)
+    if not cleaned:
+        return [], []
+
+    paths, durations = zip(*cleaned, strict=True)
+    return list(paths), list(durations)
 
 
 def _create_timelapse_video(
     run_dir: Path,
-    image_paths: List[str],
+    image_paths: list[str],
     fps: int,
     transition_duration: float,
     frame_duration: float,
     transition_type: str,
-    music_path: Optional[str],
-    frame_durations: Optional[List[float]] = None,
+    music_path: str | None,
+    frame_durations: list[float] | None = None,
 ) -> str:
-    """Create a time-lapse video from the generated images with smooth transitions.
-    
-    Args:
-        run_dir: Directory to store the video
-        image_paths: List of paths to the generated images
-        fps: Frames per second for the output video
-        transition_duration: Duration of transition between images in seconds
-        frame_duration: Duration each frame is shown in seconds
-        transition_type: Type of transition effect to use (fade, dissolve, wiperight, etc.)
-        
-    Returns:
-        Path to the created video
-    """
-    logging.info("Creating time-lapse video with smooth transitions from %d images", len(image_paths))
-    
+    """Render the time-lapse video from the enriched frame list."""
+    logging.info(
+        "Creating time-lapse video with smooth transitions from %d images",
+        len(image_paths),
+    )
     video_assembler = VideoAssembler(str(run_dir))
-    
-    # Use the new smooth timelapse method for better transitions
     video_path = video_assembler.create_smooth_timelapse(
         image_paths,
         output_filename=TIMELAPSE_VIDEO_FILENAME,
@@ -217,64 +224,41 @@ def _create_timelapse_video(
         music_path=music_path,
         frame_durations=frame_durations,
     )
-    
     if not video_path:
         logging.error("Failed to create time-lapse video")
         return ""
-    
     logging.info("Time-lapse video created: %s", video_path)
     return video_path
 
 
 def _upload_to_youtube(
-    video_path: str, 
-    title: str, 
+    video_path: str,
+    title: str,
     description: str,
-    tags: Optional[List[str]] = None
+    tags: list[str] | None = None,
 ) -> bool:
-    """Upload the video to YouTube.
-    
-    Args:
-        video_path: Path to the video file
-        title: Title for the YouTube video
-        description: Description for the YouTube video
-        tags: Tags for the YouTube video
-        
-    Returns:
-        True if upload was successful, False otherwise
-    """
-    if not os.path.exists(video_path):
+    """Upload the time-lapse video to YouTube. Returns ``True`` on success."""
+    if not Path(video_path).exists():
         logging.error("Video file does not exist: %s", video_path)
         return False
-    
+
     try:
-        # Create a temporary directory for the upload
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Copy the video to the temp directory with the expected name
-            temp_video_path = os.path.join(temp_dir, "final_story_video.mp4")
-            shutil.copy(video_path, temp_video_path)
-            
-            # Create a story prompt file with the title and description
-            temp_prompt_path = os.path.join(temp_dir, "story_prompt.txt")
-            with open(temp_prompt_path, "w", encoding="utf-8") as f:
-                f.write(f"{title}\n\n{description}")
-            
-            # Initialize the uploader with the temp directory
-            uploader = YouTubeUploader(
-                run_dir=temp_dir,
-                default_tags=tags or ["timelapse", "evolution", "ai-generated"]
+            temp_path = Path(temp_dir)
+            shutil.copy(video_path, temp_path / FINAL_VIDEO_FILENAME)
+            (temp_path / STORY_PROMPT_FILENAME).write_text(
+                f"{title}\n\n{description}", encoding="utf-8"
             )
-            
-            # Upload the video
+            uploader = YouTubeUploader(
+                run_dir=temp_dir, default_tags=tags or _TIMELAPSE_DEFAULT_TAGS
+            )
             video_url = uploader.upload()
-            
-            if video_url:
-                logging.info("Video successfully uploaded to YouTube: %s", video_url)
-                return True
-            else:
-                logging.error("Failed to upload video to YouTube")
-                return False
-            
-    except Exception as e:
-        logging.error("Error uploading to YouTube: %s", e)
+
+        if video_url:
+            logging.info("Video successfully uploaded to YouTube: %s", video_url)
+            return True
+        logging.error("Failed to upload video to YouTube")
+        return False
+    except (OSError, shutil.Error):
+        logging.exception("Error uploading to YouTube")
         return False

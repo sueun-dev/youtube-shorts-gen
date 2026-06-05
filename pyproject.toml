@@ -1,17 +1,17 @@
 [project]
-name = "youtube-shorts"
+name = "youtube-shorts-gen"
 version = "0.1.0"
-description = ""
+description = "Fully automated pipeline to generate, narrate, and publish YouTube Shorts using AI."
 authors = [
     {name = "sueun-dev",email = "sueun.dev@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13,<4.0"
+requires-python = ">=3.12,<4.0"
 dependencies = [
     "openai (>=1.76.2,<2.0.0)",
     "python-dotenv (>=1.1.0,<2.0.0)",
     "requests (>=2.32.3,<3.0.0)",
-    "elevenlabs (>=1.0.0,<2.0.0)",
+    "elevenlabs (>=2.0.0,<3.0.0)",
     "pydub (>=0.25.1,<0.26.0)",
     "runwayml (>=3.0.4,<4.0.0)",
     "moviepy (>=2.1.2,<3.0.0)",
@@ -20,9 +20,11 @@ dependencies = [
     "google-api-python-client (>=2.169.0,<3.0.0)",
     "beautifulsoup4 (>=4.13.4,<5.0.0)",
     "nltk (>=3.9.1,<4.0.0)",
-    "youtube-transcript-api (>=1.0.3,<2.0.0) ; python_version == \"3.13\"",
+    "youtube-transcript-api (>=1.0.3,<2.0.0)",
     "mutagen (>=1.47.0,<2.0.0)",
     "opencv-python-headless (>=4.11.0.86,<5.0.0.0)",
+    "pillow (>=10.0.0,<12.0.0)",
+    "numpy (>=1.26.0,<3.0.0)",
 ]
 
 
@@ -60,8 +62,8 @@ exclude = [
 ]
 # Same as Black
 line-length = 88
-# Assume Python 3.13
-target-version = "py313"
+# Assume Python 3.12
+target-version = "py312"
 
 [tool.ruff.lint]
 # Enable various code quality rules
@@ -89,3 +91,11 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 skip-magic-trailing-comma = false
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+include = ["youtube_shorts_gen", "tests", "main.py"]
+reportMissingImports = true
+reportMissingModuleSource = false

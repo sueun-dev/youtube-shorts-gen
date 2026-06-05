@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import Any
 
 from youtube_shorts_gen.upload.upload_to_youtube import YouTubeUploader
+from youtube_shorts_gen.utils.config import FINAL_VIDEO_FILENAME
 
 # === Helper functions (Single Responsibility) ===
+
 
 def _upload_final_video(run_dir: str) -> str | None:
     """Upload the final video in `run_dir` to YouTube and return the video URL."""
@@ -24,22 +26,20 @@ def _build_failure_response(message: str, final_path: Path) -> dict[str, Any]:
 
 # === Public API ===
 
-def run_upload_pipeline(run_dir: str) -> dict:
-    """
-    Run the YouTube upload pipeline.
+
+def run_upload_pipeline(run_dir: str) -> dict[str, Any]:
+    """Run the YouTube upload pipeline.
 
     Args:
-        run_dir: Directory containing the video to upload
+        run_dir: Directory containing the video to upload.
 
     Returns:
-        Dictionary with upload results
+        Dictionary with upload results (always contains a ``success`` key).
     """
     logging.info("[Upload Pipeline] Starting YouTube upload pipeline")
+    final_video_path = Path(run_dir) / FINAL_VIDEO_FILENAME
 
     try:
-        final_video_path = Path(run_dir) / "final_story_video.mp4"
-
-        # 1. Attempt upload
         video_url = _upload_final_video(run_dir)
 
         if video_url:
@@ -47,13 +47,11 @@ def run_upload_pipeline(run_dir: str) -> dict:
             return _build_success_response(video_url, final_video_path)
 
         logging.info(
-            "[Upload Pipeline] Video not uploaded to YouTube: %s",
-            final_video_path
+            "[Upload Pipeline] Video not uploaded to YouTube: %s", final_video_path
         )
         return _build_failure_response(
-            "Upload failed but no exception was raised",
-            final_video_path
+            "Upload failed but no exception was raised", final_video_path
         )
-    except Exception as e:
-        logging.exception("[Upload Pipeline] Failed: %s", e)
-        return {"success": False, "error": str(e)}
+    except Exception as exc:
+        logging.exception("[Upload Pipeline] Failed")
+        return _build_failure_response(str(exc), final_video_path)

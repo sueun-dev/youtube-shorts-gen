@@ -1,106 +1,112 @@
 # YouTube Shorts 자동 생성기
 
-인공지능과 인터넷 콘텐츠를 활용하여 YouTube Shorts 비디오를 자동으로 생성하고 업로드하는 프로그램입니다.
+AI와 인터넷 콘텐츠를 활용하여 YouTube Shorts 영상을 자동으로 생성하고 업로드하는
+파이프라인입니다. 스토리·이미지 생성, 음성 내레이션(TTS), 영상 합성, 업로드까지 전
+과정을 자동화합니다.
 
-## 주요 기능
+## 주요 기능 (4가지 콘텐츠 모드)
 
-- AI로 스토리와 이미지 생성
-- 인터넷 기사·블로그 등에서 콘텐츠 크롤링
-- 연도별 변화를 보여주는 타임-lapse 숏츠 생성
-- 이미지와 음성을 결합한 YouTube Shorts 비디오 제작
-- 완성된 비디오를 YouTube에 자동 업로드
+1. **AI 스토리** — 무작위 프롬프트로 짧은 스토리와 이미지를 생성하고, Runway로
+   영상을 만든 뒤 TTS 내레이션과 동기화합니다.
+2. **인터넷 콘텐츠** — Dogdrip에서 글을 크롤링해 문장별 이미지·음성·영상을 만들고
+   하나의 숏츠로 합칩니다.
+3. **YouTube 자막** — YouTube 영상의 자막을 가져와 짧은 스크립트로 분할하고, 각
+   세그먼트를 이미지·음성·영상으로 변환합니다.
+4. **타임랩스** — 연도별 이미지를 생성하고 프레임 보간으로 부드럽게 전환되는, 시간에
+   따른 변화를 보여주는 숏츠를 만듭니다.
 
-## 설치 방법
+## 설치
 
-### 필요한 것들
+### 요구 사항
 
-- Python 3.10 이상
-- FFmpeg
-- API 키들:
-  - OpenAI API 키
-  - Runway ML API 키
-  - YouTube API 인증 정보
+- Python 3.12 이상
+- [FFmpeg](https://ffmpeg.org/) (영상 합성에 필요)
+- API 키:
+  - OpenAI API 키 (스토리·이미지 생성)
+  - ElevenLabs API 키 (음성 내레이션)
+  - Runway ML API 키 (이미지→영상 생성)
+  - YouTube Data API v3 OAuth 인증 정보 (업로드)
 
 ### 설치 과정
 
-1. 저장소 클론 및 이동:
-   ```bash
-   git clone https://github.com/사용자명/youtube-shorts.git
-   cd youtube-shorts
-   ```
+```bash
+git clone https://github.com/sueun-dev/youtube-shorts-gen.git
+cd youtube-shorts-gen
 
-2. 패키지 설치:
-   ```bash
-   poetry install
-   poetry shell
-   ```
+# Poetry 사용 시
+poetry install
+poetry shell
 
-3. API 키 설정:
-   - `.env` 파일 생성:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   RUNWAY_API_KEY=your_runway_api_key
-   ```
+# 또는 venv + pip
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
-4. YouTube 업로드 설정:
-   - Google Cloud Console에서 YouTube Data API v3 활성화
-   - OAuth 2.0 인증 정보를 `client_secrets.json`에 저장
+### 환경 변수 설정
 
-## 실행 방법
+프로젝트 루트에 `.env` 파일을 만들고 API 키를 넣습니다:
 
-1. 프로그램 실행:
-   ```bash
-   python main.py
-   ```
-   또는 Poetry 사용 시:
-   ```bash
-   poetry run python main.py
-   ```
+```dotenv
+OPENAI_API_KEY=your_openai_api_key
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+RUNWAY_API_KEY=your_runway_api_key
+```
 
-2. 콘텐츠 생성 선택:
-   - 프로그램이 시작되면 네 가지 옵션 중 하나를 선택해야 합니다:
-     - `1`: AI가 새로운 스토리 생성
-     - `2`: 인터넷에서 콘텐츠 가져오기
-     - `3`: YouTube 영상 자막을 활용한 숏츠 생성
-     - `4`: Time-lapse Video — 연도(또는 시간)별 이미지·영상으로 변화를 보여주는 숏츠 생성
+### YouTube 업로드 설정
 
-3. 옵션 4 (Time-lapse) 추가 정보:
-   1. 주제 프롬프트와 연도 범위 입력
-   2. OpenAI 이미지 API로 연도별 이미지를 생성·캐시
-   3. 이미지 간 보간 프레임(3장, 0.033 s) 생성 → 부드러운 전환
-   4. FFmpeg로 1080×1920, 30 fps 영상 합성 및 배경 음악 결합
-   5. 선택 시 YouTube에 자동 업로드
+- Google Cloud Console에서 YouTube Data API v3를 활성화합니다.
+- OAuth 2.0 클라이언트 정보를 받아 `client_secrets.json`으로 저장합니다
+  (`client_secrets_template.json` 참고). 최초 실행 시 브라우저 인증 창이 뜹니다.
 
-4. 자동 처리:
-   - 선택한 옵션에 따라 자동으로 다음 과정이 진행됩니다:
-     - 이미지 생성
-     - 음성 생성
-     - 비디오 생성
-     - YouTube 업로드 (설정된 경우)
+## 실행
 
-4. 처음 실행 시 주의사항:
-   - YouTube 업로드 시에는 Google 계정 인증 창이 나타납니다.
-   - FFmpeg가 설치되어 있는지 확인하세요.
+```bash
+python main.py
+```
+
+실행하면 콘텐츠 소스를 선택합니다:
+
+- `1`: AI 스토리
+- `2`: 인터넷 콘텐츠
+- `3`: YouTube 자막
+- `4`: 타임랩스 (주제 프롬프트와 연도 범위를 입력)
+
+프로그램은 무한 루프로 동작하며, 한 번 실행이 끝나면 `SLEEP_SECONDS`(기본 120초)만큼
+대기 후 다시 실행합니다.
 
 ## 출력 파일
 
-프로그램이 실행되면 `runs/` 폴더 안에 날짜와 시간으로 된 폴더가 생성됩니다 (예: `runs/2025-05-27_15-22-53/`).
+실행할 때마다 `runs/` 아래에 타임스탬프 폴더가 생성됩니다
+(예: `runs/2025-05-27_15-22-53/`). 최종 영상은 `final_story_video.mp4`로 저장되며,
+설정에 따라 YouTube에 자동 업로드됩니다.
 
-- AI 옵션 선택 시: 최종적으로 `final_story_video.mp4` 파일이 생성됩니다.
-- 인터넷 옵션 선택 시: 이미지, 오디오, 비디오가 각각 생성되고 최종적으로 `final_story_video.mp4` 파일이 생성됩니다.
+## 설정 (환경 변수로 조정 가능)
 
-## 자주 발생하는 문제 해결
+대부분의 동작은 `youtube_shorts_gen/utils/config.py`에 모여 있으며, 다음 환경 변수로
+기본값을 덮어쓸 수 있습니다:
 
-- **API 키 오류**: `.env` 파일에 유효한 API 키가 있는지 확인하세요.
-- **FFmpeg 오류**: 시스템에 FFmpeg가 설치되어 있는지 확인하세요.
-- **YouTube 업로드 오류**: `client_secrets.json` 파일이 올바른지 확인하세요.
+| 변수 | 설명 | 기본값 |
+| --- | --- | --- |
+| `OPENAI_CHAT_MODEL` | 스토리·요약용 챗 모델 | `gpt-4o-mini-2024-07-18` |
+| `OPENAI_IMAGE_MODEL` | 이미지 생성 모델 | `gpt-image-1` |
+| `OPENAI_IMAGE_SIZE` | 이미지 크기 | `1024x1024` |
+| `OPENAI_IMAGE_QUALITY` | 이미지 품질 (`low`/`medium`/`high`) | `medium` |
+| `ELEVENLABS_VOICE_ID` | TTS 음성 ID | (기본 음성) |
+| `RUNWAY_MODEL` / `RUNWAY_ASPECT_RATIO` | Runway 모델·비율 | `gen3a_turbo` / `768:1280` |
+| `MAX_RUNWAY_VIDEOS_PER_SEGMENT` | 세그먼트당 Runway 영상 수 | `4` |
+| `SLEEP_SECONDS` | 실행 사이 대기 시간(초) | `120` |
 
-## 관련 정보
+## 개발
 
-- OpenAI와 Runway ML API는 사용량에 따라 비용이 발생할 수 있습니다.
-- 리넩스에서는 FFmpeg 설치를 위해 `apt-get install ffmpeg`를 실행하세요.
+```bash
+ruff check .      # 린트
+ruff format .     # 포매팅
+pyright           # 타입 검사
+pytest            # 테스트
+```
 
+## 참고
 
-
- 링크 던지면 여기서 영상 가져와서 숏츠로 잘라냄 (상요자가 시간을 정하고)
-잘라주고
+- OpenAI, ElevenLabs, Runway ML API는 사용량에 따라 비용이 발생할 수 있습니다.
+- 리눅스에서는 `apt-get install ffmpeg`로 FFmpeg를 설치할 수 있습니다.
