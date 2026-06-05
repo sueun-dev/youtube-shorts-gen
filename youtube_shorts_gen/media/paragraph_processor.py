@@ -36,9 +36,9 @@ class ParagraphProcessor:
         self.video_assembler = VideoAssembler(run_dir)
 
     def _get_existing_image_paths(self) -> list[str]:
-        """Get and sort image paths (png, jpg, jpeg, webp) from the images directory."""
+        """Get and sort image paths (png, jpg, jpeg, webp) from the images dir."""
         if not self.images_dir.exists():
-            logging.warning(f"Images directory not found: {self.images_dir}")
+            logging.warning("Images directory not found: %s", self.images_dir)
             return []
 
         exts = [
@@ -57,8 +57,9 @@ class ParagraphProcessor:
 
         image_paths = sorted({str(p) for p in image_paths})
         logging.info(
-            f"Found {len(image_paths)} existing images in {self.images_dir} "
-            "(png, jpg, jpeg, webp)"
+            "Found %d existing images in %s (png, jpg, jpeg, webp)",
+            len(image_paths),
+            self.images_dir,
         )
         return image_paths
 
@@ -88,9 +89,9 @@ class ParagraphProcessor:
                         )
                         f.write(f"Video Segment: {segment_rel_path}\n")
                     f.write("\n")
-            logging.info(f"Successfully wrote mapping file to {self.mapping_path}")
-        except Exception as e:
-            logging.error(f"Error writing mapping file: {e}")
+            logging.info("Successfully wrote mapping file to %s", self.mapping_path)
+        except (OSError, UnicodeError):
+            logging.exception("Error writing mapping file")
 
     def process(self, story_text: str) -> dict[str, Any]:
         """Processes story text by generating text segments, pairing with existing
@@ -102,7 +103,7 @@ class ParagraphProcessor:
         Returns:
             A dictionary containing paths to generated assets and the final video.
         """
-        logging.info(f"Starting paragraph processing for run_dir: {self.run_dir}")
+        logging.info("Starting paragraph processing for run_dir: %s", self.run_dir)
 
         image_paths = self._get_existing_image_paths()
         if not image_paths:
@@ -114,7 +115,7 @@ class ParagraphProcessor:
         text_segments = self.text_processor.get_content_segments(
             story_text, summarize_long_paragraphs=True
         )
-        logging.info(f"Processed story into {len(text_segments)} text segments.")
+        logging.info("Processed story into %d text segments.", len(text_segments))
 
         if not text_segments:
             logging.error(
@@ -127,17 +128,19 @@ class ParagraphProcessor:
 
         if len(processed_paragraphs) < num_images:
             logging.info(
-                f"Number of text segments ({len(processed_paragraphs)}) is less than"
-                f"images ({num_images}). Duplicating segments."
+                "Number of text segments (%d) is less than images (%d). "
+                "Duplicating segments.",
+                len(processed_paragraphs),
+                num_images,
             )
             original_segment_count = len(processed_paragraphs)
             if original_segment_count == 0:
                 logging.error(
-                    "Cannot duplicate segments as there are no original segments"
-                    "after processing"
+                    "Cannot duplicate segments as there are no original "
+                    "segments after processing"
                 )
                 return {
-                    "error": "No text segments to align with images after"
+                    "error": "No text segments to align with images after "
                     "initial processing."
                 }
             while len(processed_paragraphs) < num_images:
@@ -148,8 +151,10 @@ class ParagraphProcessor:
                 )
         elif len(processed_paragraphs) > num_images:
             logging.info(
-                f"Number of text segments ({len(processed_paragraphs)}) is greater"
-                f"than images ({num_images}). Truncating segments."
+                "Number of text segments (%d) is greater than images (%d). "
+                "Truncating segments.",
+                len(processed_paragraphs),
+                num_images,
             )
             processed_paragraphs = processed_paragraphs[:num_images]
 
@@ -160,8 +165,10 @@ class ParagraphProcessor:
         audio_paths = self.tts_generator.generate_for_paragraphs(final_text_segments)
         if not audio_paths or len(audio_paths) != len(final_text_segments):
             logging.error(
-                f"TTS generation failed or produced mismatched number of audio files."
-                f"Expected {len(final_text_segments)}, got {len(audio_paths)}."
+                "TTS generation failed or produced mismatched number of audio "
+                "files. Expected %d, got %d.",
+                len(final_text_segments),
+                len(audio_paths),
             )
             valid_audio_count = len(audio_paths)
             final_text_segments = final_text_segments[:valid_audio_count]
@@ -180,7 +187,7 @@ class ParagraphProcessor:
                 created_segment_video_paths.append(segment_video_path)
             else:
                 logging.warning(
-                    f"Failed to create video segment {i+1}. It will be excluded."
+                    "Failed to create video segment %d. It will be excluded.", i + 1
                 )
 
         if not created_segment_video_paths:
@@ -202,7 +209,9 @@ class ParagraphProcessor:
             created_segment_video_paths,
         )
 
-        logging.info(f"Paragraph processing completed. Final video: {final_video_path}")
+        logging.info(
+            "Paragraph processing completed. Final video: %s", final_video_path
+        )
         return {
             "story": story_text,
             "processed_paragraphs": final_text_segments,

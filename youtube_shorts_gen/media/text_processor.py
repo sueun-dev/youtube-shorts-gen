@@ -2,9 +2,13 @@ import logging
 import re
 from pathlib import Path
 
-from openai import OpenAI  # Assuming OpenAI client is passed or initialized
+from openai import OpenAI, OpenAIError
 
-from youtube_shorts_gen.utils.config import OPENAI_CHAT_MODEL
+from youtube_shorts_gen.utils.config import (
+    MAX_PARAGRAPHS_FOR_SHORTS,
+    OPENAI_CHAT_MODEL,
+    SUMMARIZE_THRESHOLD_CHARS,
+)
 
 
 class TextProcessor:
@@ -44,8 +48,8 @@ class TextProcessor:
                     len(sentence_blocks),
                 )
                 return [s.strip() for s in sentence_blocks]
-        except Exception as e:
-            logging.error("Error reading sentence mapping file: %s", e)
+        except (OSError, UnicodeError):
+            logging.exception("Error reading sentence mapping file")
 
         return []
 
@@ -62,9 +66,12 @@ class TextProcessor:
         if strategy == "paragraphs":
             split_text = text.split("\n\n")
             segments = [p.strip() for p in split_text if p.strip()]
-            if len(segments) > 8:
-                logging.info("Limiting to 8 paragraphs for shorts.")
-                segments = segments[:8]
+            if len(segments) > MAX_PARAGRAPHS_FOR_SHORTS:
+                logging.info(
+                    "Limiting to %d paragraphs for shorts.",
+                    MAX_PARAGRAPHS_FOR_SHORTS,
+                )
+                segments = segments[:MAX_PARAGRAPHS_FOR_SHORTS]
             return segments
 
         if strategy == "sentences":
@@ -94,7 +101,7 @@ class TextProcessor:
             logging.info("Created %d artificial chunks from text", len(segments))
             return segments
 
-        logging.error(f"Unknown splitting strategy: {strategy}")
+        logging.error("Unknown splitting strategy: %s", strategy)
         raise ValueError(f"Unknown splitting strategy: {strategy}")
 
     def _summarize_paragraph(self, paragraph: str, index: int) -> str:
@@ -107,25 +114,25 @@ class TextProcessor:
         Returns:
             Summarized paragraph or original if short enough/error.
         """
-        if len(paragraph) <= 300:
+        if len(paragraph) <= SUMMARIZE_THRESHOLD_CHARS:
             return paragraph
 
         try:
             logging.info(
-                f"Paragraph {index+1} is long ({len(paragraph)} chars),"
-                f"attempting summarization."
+                "Paragraph %d is long (%d chars), attempting summarization.",
+                index + 1,
+                len(paragraph),
             )
-            # FIXME!
             response = self.client.chat.completions.create(
                 model=OPENAI_CHAT_MODEL,
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "Summarize the following paragraph concisely in about"
-                            "2-3 sentences"
-                            " while preserving the key points and emotional tone."
-                            " Keep it engaging for a short video format."
+                            "Summarize the following paragraph concisely in "
+                            "about 2-3 sentences while preserving the key points "
+                            "and emotional tone. Keep it engaging for a short "
+                            "video format."
                         ),
                     },
                     {"role": "user", "content": paragraph},
@@ -142,11 +149,11 @@ class TextProcessor:
                 len(summary),
             )
             return summary if summary else paragraph
-        except Exception as e:
-            logging.error(
-                "Error summarizing paragraph %d: %s. Using original (or truncated).",
+        except (OpenAIError, IndexError, AttributeError):
+            logging.exception(
+                "Error summarizing paragraph %d. Truncating to %d chars.",
                 index + 1,
-                e,
+                500,
             )
             return paragraph[:500]
 
@@ -180,15 +187,15 @@ class TextProcessor:
 
         if not segments or (len(segments) == 1 and len(segments[0]) > 500):
             logging.info(
-                "Initial paragraph split resulted in one large segment or no segments."
-                "Trying sentence splitting."
+                "Initial paragraph split resulted in one large segment or no "
+                "segments. Trying sentence splitting."
             )
             sentence_segments = self._split_text(text, strategy="sentences")
             if len(sentence_segments) > 1:
                 segments = sentence_segments
             elif not segments:
                 logging.info(
-                    "Sentence splitting also didn't yield multiple segments."
+                    "Sentence splitting also didn't yield multiple segments. "
                     "Resorting to chunking."
                 )
                 segments = self._split_text(text, strategy="chunks")

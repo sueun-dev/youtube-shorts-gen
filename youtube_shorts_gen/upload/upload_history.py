@@ -41,7 +41,7 @@ class UploadHistory:
         """
         try:
             return json.loads(self.history_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, FileNotFoundError) as e:
+        except (json.JSONDecodeError, OSError) as e:
             logging.warning("Error loading history file, creating new one: %s", e)
             empty_history = {"uploads": []}
             self.history_file.write_text(

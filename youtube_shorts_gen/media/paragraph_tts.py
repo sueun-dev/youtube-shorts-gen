@@ -6,6 +6,12 @@ from pathlib import Path
 
 from elevenlabs.client import ElevenLabs
 
+from youtube_shorts_gen.utils.config import (
+    ELEVENLABS_MODEL,
+    ELEVENLABS_OUTPUT_FORMAT,
+    ELEVENLABS_VOICE_ID,
+)
+
 
 class ParagraphTTS:
     """Generates TTS audio for individual paragraphs using the ElevenLabs API."""
@@ -19,8 +25,6 @@ class ParagraphTTS:
         self.run_dir = Path(run_dir)
         self.audio_dir = self.run_dir / "paragraph_audio"
         self.audio_dir.mkdir(exist_ok=True)
-
-        
 
     def _generate_tts_elevenlabs(self, text: str, index: int) -> str | None:
         """Generate TTS using ElevenLabs API.
@@ -39,26 +43,29 @@ class ParagraphTTS:
             )
             return None
 
-        audio_path = self.audio_dir / f"paragraph_{index+1}.mp3"
+        audio_path = self.audio_dir / f"paragraph_{index + 1}.mp3"
 
         try:
-            client = ElevenLabs()
-            audio_bytes = client.generate(text=text, voice="JBFqnCBsd6RMkjVDRZzb")
+            client = ElevenLabs(api_key=api_key)
+            audio_stream = client.text_to_speech.convert(
+                voice_id=ELEVENLABS_VOICE_ID,
+                text=text,
+                model_id=ELEVENLABS_MODEL,
+                output_format=ELEVENLABS_OUTPUT_FORMAT,
+            )
             with open(audio_path, "wb") as f:
-                if isinstance(audio_bytes, bytes | bytearray):
-                    f.write(audio_bytes)
-                else:
-                    for chunk in audio_bytes:
-                        f.write(chunk)
+                for chunk in audio_stream:
+                    f.write(chunk)
             logging.info(
                 "Generated ElevenLabs TTS audio for paragraph %d: %s",
-                index + 1, audio_path
+                index + 1,
+                audio_path,
             )
             return str(audio_path)
-        except Exception as e:
-            logging.error(
-                "Error generating ElevenLabs TTS audio for paragraph %d: %s",
-                index + 1, e
+        except Exception:
+            logging.exception(
+                "Error generating ElevenLabs TTS audio for paragraph %d",
+                index + 1,
             )
             return None
 
@@ -83,7 +90,7 @@ class ParagraphTTS:
         Returns:
             List of paths to generated audio files
         """
-        audio_paths = []
+        audio_paths: list[str] = []
 
         for i, paragraph in enumerate(paragraphs):
             audio_path = self.generate_for_paragraph(paragraph, i)

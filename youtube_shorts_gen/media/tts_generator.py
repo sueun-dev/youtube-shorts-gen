@@ -6,6 +6,14 @@ from pathlib import Path
 
 from elevenlabs.client import ElevenLabs
 
+from youtube_shorts_gen.utils.config import (
+    ELEVENLABS_MODEL,
+    ELEVENLABS_OUTPUT_FORMAT,
+    ELEVENLABS_VOICE_ID,
+    STORY_AUDIO_FILENAME,
+    STORY_PROMPT_FILENAME,
+)
+
 
 class TTSGenerator:
     """Generates text-to-speech audio from text using the ElevenLabs TTS API.
@@ -23,8 +31,8 @@ class TTSGenerator:
         """
         self.run_dir = Path(run_dir)
         self.lang = lang
-        self.prompt_path = self.run_dir / "story_prompt.txt"
-        self.audio_path = self.run_dir / "story_audio.mp3"
+        self.prompt_path = self.run_dir / STORY_PROMPT_FILENAME
+        self.audio_path = self.run_dir / STORY_AUDIO_FILENAME
 
     def generate_from_file(self) -> str:
         """Generate TTS audio from the story file.
@@ -52,20 +60,21 @@ class TTSGenerator:
         Returns:
             Path to the generated audio file
         """
-        logging.info("Generating TTS with ElevenLabs...")
+        logging.info("Generating TTS with ElevenLabs")
         api_key = os.getenv("ELEVENLABS_API_KEY")
         if not api_key:
             raise OSError("ELEVENLABS_API_KEY environment variable not set.")
 
-        client = ElevenLabs()
-        audio_bytes = client.generate(text=text, voice="JBFqnCBsd6RMkjVDRZzb")
+        client = ElevenLabs(api_key=api_key)
+        audio_stream = client.text_to_speech.convert(
+            voice_id=ELEVENLABS_VOICE_ID,
+            text=text,
+            model_id=ELEVENLABS_MODEL,
+            output_format=ELEVENLABS_OUTPUT_FORMAT,
+        )
 
         with open(self.audio_path, "wb") as f:
-            if isinstance(audio_bytes, bytes | bytearray):
-                f.write(audio_bytes)
-            else:
-                # If generate returns an iterator (stream), join chunks
-                for chunk in audio_bytes:
-                    f.write(chunk)
+            for chunk in audio_stream:
+                f.write(chunk)
         logging.info("TTS saved: %s", self.audio_path)
         return str(self.audio_path)

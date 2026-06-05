@@ -143,9 +143,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
 
                 # Verify the text segments were processed correctly
                 self.assertEqual(len(result["processed_paragraphs"]), 2)
-                self.assertTrue(
-                    "dragon snarled" in result["processed_paragraphs"][0]
-                )
+                self.assertTrue("dragon snarled" in result["processed_paragraphs"][0])
 
     @patch("openai.OpenAI")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")
@@ -221,9 +219,7 @@ Image: {self.test_run_dir}/images/sentence_2.png
 
                 # Verify the text segments were processed correctly
                 self.assertEqual(len(result["processed_paragraphs"]), 2)
-                self.assertTrue(
-                    "dragon snarled" in result["processed_paragraphs"][0]
-                )
+                self.assertTrue("dragon snarled" in result["processed_paragraphs"][0])
 
     @patch("openai.OpenAI")
     @patch("youtube_shorts_gen.media.paragraph_processor.ParagraphTTS")

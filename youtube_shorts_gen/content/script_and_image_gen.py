@@ -1,12 +1,16 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from openai import OpenAI
 
 from youtube_shorts_gen.content.story_prompt_gen import generate_dynamic_prompt
 from youtube_shorts_gen.utils.config import (
+    CHAT_MAX_TOKENS_DEFAULT,
+    CHAT_TEMPERATURE_DEFAULT,
     IMAGE_PROMPT_TEMPLATE,
     OPENAI_CHAT_MODEL,
+    STORY_PROMPT_FILENAME,
 )
 from youtube_shorts_gen.utils.openai_image import (
     generate_image as generate_openai_image,
@@ -14,18 +18,24 @@ from youtube_shorts_gen.utils.openai_image import (
 
 
 class ScriptAndImageGenerator:
-    def __init__(self, run_dir: str, client: OpenAI, 
-                 temperature: float = 0.9, max_tokens: int = 300):
+    def __init__(
+        self,
+        run_dir: str,
+        client: OpenAI,
+        temperature: float = CHAT_TEMPERATURE_DEFAULT,
+        max_tokens: int = CHAT_MAX_TOKENS_DEFAULT,
+    ) -> None:
         """Initialize the script generator with configuration parameters.
 
         Args:
             run_dir: Directory to save generated content
+            client: Configured OpenAI client used for API calls
             temperature: Creativity level for text generation (0.0-1.0)
             max_tokens: Maximum length of generated text
         """
         self.run_dir = Path(run_dir)
         self.client = client
-        self.prompt_path = self.run_dir / "story_prompt.txt"
+        self.prompt_path = self.run_dir / STORY_PROMPT_FILENAME
         self.image_path = self.run_dir / "story_image.png"
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -83,7 +93,13 @@ class ScriptAndImageGenerator:
 
         logging.info("Saved image: %s", saved_path)
 
-    def run(self) -> None:
-        """Execute the full generation pipeline: story and image."""
+    def run(self) -> dict[str, Any]:
+        """Execute the full generation pipeline: story then image.
+
+        Returns:
+            A dict with the generated ``story`` text and the ``image_paths``
+            list (a single image for this generator).
+        """
         story = self.generate_story()
         self.generate_image(story)
+        return {"story": story, "image_paths": [str(self.image_path)]}
