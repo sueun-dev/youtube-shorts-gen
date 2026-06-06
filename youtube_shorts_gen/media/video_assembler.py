@@ -694,12 +694,23 @@ class VideoAssembler:
         for i in range(len(processed_images) - 1):
             output_transition = transitions_dir / f"transition_{i:04d}_{i + 1:04d}.mp4"
             try:
+                # Loop each still image for the transition's length so xfade has
+                # real-duration streams to blend; without -loop/-t each PNG is a
+                # single frame and the crossfade collapses to one frame.
                 subprocess.run(
                     [
                         "ffmpeg",
                         "-y",
+                        "-loop",
+                        "1",
+                        "-t",
+                        str(transition_duration),
                         "-i",
                         processed_images[i],
+                        "-loop",
+                        "1",
+                        "-t",
+                        str(transition_duration),
                         "-i",
                         processed_images[i + 1],
                         "-filter_complex",

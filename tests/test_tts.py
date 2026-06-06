@@ -123,8 +123,10 @@ def test_generate_for_paragraphs_writes_all(tmp_path, monkeypatch):
         assert Path(path).read_bytes() == b"aabb"
 
 
-def test_generate_for_paragraphs_skips_api_failure(tmp_path, monkeypatch, caplog):
-    """A paragraph whose API call raises is logged and excluded from results."""
+def test_generate_for_paragraphs_aligns_failures_as_empty(
+    tmp_path, monkeypatch, caplog
+):
+    """A failed paragraph is logged and kept as "" so results stay aligned."""
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
     client = MagicMock()
 
@@ -145,8 +147,8 @@ def test_generate_for_paragraphs_skips_api_failure(tmp_path, monkeypatch, caplog
         tts = ParagraphTTS(str(tmp_path))
         paths = tts.generate_for_paragraphs(["good", "bad"])
 
-    # Only the successful paragraph is kept; the failed one is skipped.
-    assert paths == [str(tmp_path / "paragraph_audio" / "paragraph_1.mp3")]
+    # The result stays index-aligned: success keeps its path, failure is "".
+    assert paths == [str(tmp_path / "paragraph_audio" / "paragraph_1.mp3"), ""]
     assert Path(paths[0]).read_bytes() == b"ok"
     assert not (tmp_path / "paragraph_audio" / "paragraph_2.mp3").exists()
     assert "paragraph 2" in caplog.text

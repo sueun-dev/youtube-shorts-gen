@@ -96,7 +96,9 @@ class TranscriptSegmenter:
             chunks.append(" ".join(words[start:end]))
 
         trailing = len(words) % TRANSCRIPT_WORDS_PER_CHUNK
-        if len(chunks) > 1 and trailing < TRANSCRIPT_MIN_TRAILING_CHUNK_WORDS:
+        # Only fold a *small* trailing remainder back into the previous chunk;
+        # trailing == 0 means the final chunk is full-size and must be left alone.
+        if len(chunks) > 1 and 0 < trailing < TRANSCRIPT_MIN_TRAILING_CHUNK_WORDS:
             chunks[-2] = f"{chunks[-2]} {chunks[-1]}"
             chunks.pop()
 

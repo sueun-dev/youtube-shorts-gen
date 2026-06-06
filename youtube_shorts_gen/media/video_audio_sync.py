@@ -39,7 +39,8 @@ class VideoAudioSyncer:
             path: Path to the media file
 
         Returns:
-            Duration in seconds as a float
+            Duration in seconds, or ``0.0`` if ffprobe reports no duration
+            (e.g. the literal ``N/A`` for a container without duration metadata)
 
         Raises:
             subprocess.CalledProcessError: If ffprobe command fails
@@ -61,7 +62,14 @@ class VideoAudioSyncer:
             check=True,
             timeout=FFPROBE_TIMEOUT_SECONDS,
         )
-        return float(result.stdout.strip())
+        output = result.stdout.strip()
+        try:
+            return float(output)
+        except ValueError:
+            logging.error(
+                "ffprobe returned no usable duration for %s: %r", path, output
+            )
+            return 0.0
 
     def adjust_video_speed(self, speed: float) -> None:
         """Adjust video playback speed using ffmpeg.
@@ -152,10 +160,11 @@ class VideoAudioSyncer:
             logging.exception("Failed to probe media durations")
             return ""
 
-        if audio_duration == 0:
+        if audio_duration == 0 or video_duration == 0:
             logging.error(
-                "Audio duration is zero; skipping synchronization for %s",
-                self.audio_path,
+                "Missing media duration (video=%.3f, audio=%.3f); skipping sync",
+                video_duration,
+                audio_duration,
             )
             return ""
 

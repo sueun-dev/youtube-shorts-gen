@@ -163,20 +163,23 @@ class ParagraphProcessor:
         final_image_paths = image_paths[:num_final_segments]
 
         audio_paths = self.tts_generator.generate_for_paragraphs(final_text_segments)
-        if not audio_paths or len(audio_paths) != len(final_text_segments):
-            logging.error(
-                "TTS generation failed or produced mismatched number of audio "
-                "files. Expected %d, got %d.",
-                len(final_text_segments),
-                len(audio_paths),
+        # generate_for_paragraphs is index-aligned (empty string on failure), so
+        # keep only positions that produced audio while keeping text, image, and
+        # audio paired by position. Truncating to a count would mispair them.
+        aligned = [
+            (text, image, audio)
+            for text, image, audio in zip(
+                final_text_segments, final_image_paths, audio_paths, strict=True
             )
-            valid_audio_count = len(audio_paths)
-            final_text_segments = final_text_segments[:valid_audio_count]
-            final_image_paths = final_image_paths[:valid_audio_count]
-            num_final_segments = valid_audio_count
-
-            if num_final_segments == 0:
-                return {"error": "TTS generation failed for all segments."}
+            if audio
+        ]
+        if not aligned:
+            logging.error("TTS generation failed for all segments.")
+            return {"error": "TTS generation failed for all segments."}
+        final_text_segments = [text for text, _, _ in aligned]
+        final_image_paths = [image for _, image, _ in aligned]
+        audio_paths = [audio for _, _, audio in aligned]
+        num_final_segments = len(aligned)
 
         created_segment_video_paths = []
         for i in range(num_final_segments):

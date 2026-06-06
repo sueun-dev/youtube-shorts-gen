@@ -88,13 +88,11 @@ class ParagraphTTS:
             paragraphs: List of paragraph texts
 
         Returns:
-            List of paths to generated audio files
+            One audio path per input paragraph, with ``""`` in any position whose
+            generation failed. The result stays index-aligned with ``paragraphs``
+            so callers can keep text/image/audio paired by position.
         """
-        audio_paths: list[str] = []
-
-        for i, paragraph in enumerate(paragraphs):
-            audio_path = self.generate_for_paragraph(paragraph, i)
-            if audio_path:
-                audio_paths.append(audio_path)
-
-        return audio_paths
+        return [
+            self.generate_for_paragraph(paragraph, i) or ""
+            for i, paragraph in enumerate(paragraphs)
+        ]

@@ -37,7 +37,8 @@ def _validate_choice(name: str, value: str, allowed: set[str]) -> str:
     return value
 
 
-IMAGE_SIZES: Final[set[str]] = {"1024x1024", "1792x1024", "1024x1792"}
+# Sizes accepted by the gpt-image-1 model (square, landscape, portrait, auto).
+IMAGE_SIZES: Final[set[str]] = {"1024x1024", "1536x1024", "1024x1536", "auto"}
 OPENAI_IMAGE_SIZE: Final[str] = _validate_choice(
     "OPENAI_IMAGE_SIZE", os.getenv("OPENAI_IMAGE_SIZE", "1024x1024"), IMAGE_SIZES
 )

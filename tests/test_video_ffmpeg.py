@@ -424,3 +424,29 @@ def test_create_segment_video_with_runway(tmp_path):
     out = va.create_segment_video_with_runway(base_video, audio, index=0)
 
     assert _nonempty_file(out)
+
+
+def test_crossfade_transition_has_real_duration(tmp_path):
+    """[bug 4] An xfade clip must span transition_duration, not a single frame."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    va = VideoAssembler(str(run_dir))
+    images = [_make_image(tmp_path, f"xf_{i}.png") for i in range(2)]
+    transitions_dir = tmp_path / "trans"
+    transitions_dir.mkdir()
+
+    clips = va._build_xfade_filter(images, transitions_dir, "fade", 0.5)
+
+    assert clips is not None
+    assert len(clips) == 1
+    probe = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", clips[0],
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    # ~0.5s, far above the ~0.033s (one-frame) collapse the old code produced.
+    assert float(probe.stdout.strip()) >= 0.4
