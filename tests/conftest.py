@@ -34,6 +34,7 @@ def has_ffmpeg() -> bool:
     """Return True if both ffmpeg and ffprobe are available on PATH."""
     return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
+
 # A 1x1 transparent PNG, base64-encoded, reused by image-generation mocks.
 TEST_IMAGE_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM"

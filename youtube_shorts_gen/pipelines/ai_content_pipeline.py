@@ -1,6 +1,8 @@
 """AI content pipeline for YouTube shorts generation."""
 
 import logging
+import shutil
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
@@ -9,6 +11,7 @@ from youtube_shorts_gen.content.script_and_image_gen import ScriptAndImageGenera
 from youtube_shorts_gen.media.runway import VideoGenerator
 from youtube_shorts_gen.media.tts_generator import TTSGenerator
 from youtube_shorts_gen.media.video_audio_sync import VideoAudioSyncer
+from youtube_shorts_gen.utils.config import OUTPUT_VIDEO_FILENAME
 from youtube_shorts_gen.utils.openai_client import get_openai_client
 
 # === Helper functions (Single Responsibility) ===
@@ -26,11 +29,20 @@ def _generate_script_and_images(run_dir: str, client: OpenAI) -> dict[str, Any]:
 
 
 def _generate_ai_video(run_dir: str) -> dict[str, Any]:
-    """Generate a base video from the images using Runway."""
+    """Generate a base video with Runway and stage it for synchronisation.
+
+    Runway saves its clip under ``<run_dir>/videos/`` and returns that path, but
+    the audio/video syncer reads ``<run_dir>/output_story_video.mp4``. Copy the
+    clip to that expected location so the next step can find it.
+    """
     video_generator = VideoGenerator(run_dir)
     video_path = video_generator.generate()
-    logging.info("[AI Pipeline] Base video generated via Runway: %s", video_path)
-    return {"video_path": video_path}
+    if not video_path:
+        raise RuntimeError("Runway returned no video (generation timed out)")
+    staged_path = Path(run_dir) / OUTPUT_VIDEO_FILENAME
+    shutil.copy(video_path, staged_path)
+    logging.info("[AI Pipeline] Base video staged for sync: %s", staged_path)
+    return {"video_path": str(staged_path)}
 
 
 def _generate_tts(run_dir: str) -> str:

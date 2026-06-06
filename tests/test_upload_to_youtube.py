@@ -94,18 +94,14 @@ def test_constructor_builds_service_when_creds_present(tmp_path):
     fake_creds = MagicMock()
     fake_service = MagicMock()
     with (
-        patch.object(
-            YouTubeUploader, "_load_credentials", return_value=fake_creds
-        ),
+        patch.object(YouTubeUploader, "_load_credentials", return_value=fake_creds),
         patch(f"{_MODULE}.UploadHistory", return_value=history),
         patch(f"{_MODULE}.build", return_value=fake_service) as mock_build,
     ):
         uploader = YouTubeUploader(str(tmp_path))
 
     assert uploader.youtube is fake_service
-    mock_build.assert_called_once_with(
-        "youtube", "v3", credentials=fake_creds
-    )
+    mock_build.assert_called_once_with("youtube", "v3", credentials=fake_creds)
 
 
 # --------------------------------------------------------------------------- #
@@ -149,9 +145,7 @@ def _drive_successful_upload(uploader, video_id="abc123"):
 
 def test_upload_success_returns_url_and_records_history(tmp_path):
     history_file = tmp_path / "hist.json"
-    uploader, _ = _make_uploader(
-        tmp_path, history_file, creds=MagicMock()
-    )
+    uploader, _ = _make_uploader(tmp_path, history_file, creds=MagicMock())
     _write_story(tmp_path, "first line\nSecond Line Title")
     _write_video(tmp_path)
 
@@ -163,9 +157,7 @@ def test_upload_success_returns_url_and_records_history(tmp_path):
     insert_kwargs = fake_youtube.videos.return_value.insert.call_args.kwargs
     assert insert_kwargs["body"]["snippet"]["title"] == "Second Line Title"
     assert insert_kwargs["part"] == "snippet,status"
-    assert insert_kwargs["body"]["status"]["privacyStatus"] == (
-        YOUTUBE_PRIVACY_STATUS
-    )
+    assert insert_kwargs["body"]["status"]["privacyStatus"] == (YOUTUBE_PRIVACY_STATUS)
 
     # History file updated with the new upload.
     recorded = UploadHistory(history_file=str(history_file)).load_history()
@@ -176,9 +168,7 @@ def test_upload_success_returns_url_and_records_history(tmp_path):
 
 def test_upload_title_falls_back_to_first_line(tmp_path):
     history_file = tmp_path / "hist.json"
-    uploader, _ = _make_uploader(
-        tmp_path, history_file, creds=MagicMock()
-    )
+    uploader, _ = _make_uploader(tmp_path, history_file, creds=MagicMock())
     # Only one line -> the first line is used as the title.
     _write_story(tmp_path, "Only One Line")
     _write_video(tmp_path)
@@ -196,9 +186,7 @@ def test_upload_dedupes_duplicate_title(tmp_path):
     seed = UploadHistory(history_file=str(history_file))
     seed.add_upload("Second Line Title", "https://youtu.be/old", "old story")
 
-    uploader, _ = _make_uploader(
-        tmp_path, history_file, creds=MagicMock()
-    )
+    uploader, _ = _make_uploader(tmp_path, history_file, creds=MagicMock())
     _write_story(tmp_path, "first line\nSecond Line Title")
     _write_video(tmp_path)
 
@@ -217,9 +205,7 @@ def test_upload_dedupes_duplicate_title(tmp_path):
 
 def test_upload_returns_none_when_execute_raises(tmp_path):
     history_file = tmp_path / "hist.json"
-    uploader, _ = _make_uploader(
-        tmp_path, history_file, creds=MagicMock()
-    )
+    uploader, _ = _make_uploader(tmp_path, history_file, creds=MagicMock())
     _write_story(tmp_path, "first line\nSecond Line Title")
     _write_video(tmp_path)
 

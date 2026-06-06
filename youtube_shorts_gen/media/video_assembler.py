@@ -599,13 +599,17 @@ class VideoAssembler:
         image_paths: list[str],
         processed_dir: Path,
         target_resolution: tuple[int, int],
-    ) -> list[str] | None:
+    ) -> tuple[list[str], list[int]] | None:
         """Scale and pad images to a consistent resolution.
 
-        Returns the list of processed image paths, or None on failure.
+        Returns ``(processed_image_paths, kept_indices)`` — where
+        ``kept_indices`` are the original positions that produced an image (a
+        missing source is skipped) so callers can keep per-frame durations
+        aligned — or ``None`` on a processing failure.
         """
         target_w, target_h = target_resolution
         processed_images: list[str] = []
+        kept_indices: list[int] = []
         for i, img_path in enumerate(image_paths):
             if not os.path.exists(img_path):
                 logging.error("Image file not found: %s", img_path)
@@ -631,10 +635,11 @@ class VideoAssembler:
                     capture_output=True,
                 )
                 processed_images.append(str(output_img))
+                kept_indices.append(i)
             except subprocess.CalledProcessError as e:
                 logging.error("Failed to process image %s: %s", img_path, e.stderr)
                 return None
-        return processed_images
+        return processed_images, kept_indices
 
     def _build_image_clips(
         self,
@@ -826,11 +831,15 @@ class VideoAssembler:
             transitions_dir.mkdir(exist_ok=True)
 
             # Step 1: Process all images to a consistent resolution.
-            processed_images = self._normalise_images(
+            normalised = self._normalise_images(
                 image_paths, processed_dir, target_resolution
             )
-            if processed_images is None:
+            if normalised is None:
                 return ""
+            processed_images, kept_indices = normalised
+            # Keep per-frame durations aligned if any source image was skipped.
+            if frame_durations is not None:
+                frame_durations = [frame_durations[i] for i in kept_indices]
 
             # Step 2: Create individual clips for each image.
             image_clips = self._build_image_clips(
