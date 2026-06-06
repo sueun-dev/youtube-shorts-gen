@@ -1,5 +1,6 @@
 """Shared pytest fixtures for the test suite."""
 
+import shutil
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -8,6 +9,30 @@ import pytest
 
 # Allow importing the package when tests are run from any working directory.
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+def _ensure_ffmpeg_on_path() -> None:
+    """Best-effort: make ffmpeg/ffprobe discoverable for the video tests.
+
+    Uses a system install if present, else the optional ``static_ffmpeg`` dev
+    dependency. Tests that need ffmpeg skip themselves when neither is found.
+    """
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return
+    try:
+        import static_ffmpeg
+
+        static_ffmpeg.add_paths()
+    except Exception:
+        pass
+
+
+_ensure_ffmpeg_on_path()
+
+
+def has_ffmpeg() -> bool:
+    """Return True if both ffmpeg and ffprobe are available on PATH."""
+    return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
 # A 1x1 transparent PNG, base64-encoded, reused by image-generation mocks.
 TEST_IMAGE_B64 = (
