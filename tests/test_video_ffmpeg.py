@@ -16,9 +16,7 @@ from tests.conftest import has_ffmpeg
 from youtube_shorts_gen.media.video_assembler import VideoAssembler
 from youtube_shorts_gen.media.video_audio_sync import VideoAudioSyncer
 
-pytestmark = pytest.mark.skipif(
-    not has_ffmpeg(), reason="ffmpeg not available"
-)
+pytestmark = pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg not available")
 
 # A 1x1 transparent PNG (decodes cleanly for ffmpeg image input).
 _PNG_1X1 = (
@@ -121,18 +119,14 @@ def test_create_segment_video_happy_path(tmp_path):
 def test_create_segment_video_missing_image_returns_empty(tmp_path):
     audio = _make_silent_mp3(tmp_path / "a.mp3", seconds=2)
     assembler = VideoAssembler(str(tmp_path / "run"))
-    out = assembler.create_segment_video(
-        str(tmp_path / "missing.png"), audio, index=0
-    )
+    out = assembler.create_segment_video(str(tmp_path / "missing.png"), audio, index=0)
     assert out == ""
 
 
 def test_create_segment_video_missing_audio_returns_empty(tmp_path):
     img = _make_image(tmp_path)
     assembler = VideoAssembler(str(tmp_path / "run"))
-    out = assembler.create_segment_video(
-        img, str(tmp_path / "missing.mp3"), index=0
-    )
+    out = assembler.create_segment_video(img, str(tmp_path / "missing.mp3"), index=0)
     assert out == ""
 
 
@@ -441,8 +435,14 @@ def test_crossfade_transition_has_real_duration(tmp_path):
     assert len(clips) == 1
     probe = subprocess.run(
         [
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", clips[0],
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            clips[0],
         ],
         capture_output=True,
         text=True,
@@ -450,3 +450,41 @@ def test_crossfade_transition_has_real_duration(tmp_path):
     )
     # ~0.5s, far above the ~0.033s (one-frame) collapse the old code produced.
     assert float(probe.stdout.strip()) >= 0.4
+
+
+def test_normalise_images_reports_kept_indices(tmp_path):
+    """[bug B] _normalise_images reports kept indices so durations stay aligned."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    va = VideoAssembler(str(run_dir))
+    img0 = _make_image(tmp_path, "a.png")
+    missing = str(tmp_path / "does_not_exist.png")
+    img2 = _make_image(tmp_path, "c.png")
+    processed_dir = tmp_path / "proc"
+    processed_dir.mkdir()
+
+    result = va._normalise_images([img0, missing, img2], processed_dir, (64, 64))
+
+    assert result is not None
+    processed, kept = result
+    assert kept == [0, 2]  # index 1 (missing) is skipped
+    assert len(processed) == 2
+
+
+def test_smooth_timelapse_with_missing_image_and_durations(tmp_path):
+    """[bug B] A missing image must not crash or misalign custom durations."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    va = VideoAssembler(str(run_dir))
+    images = [
+        _make_image(tmp_path, "f0.png"),
+        str(tmp_path / "missing.png"),
+        _make_image(tmp_path, "f2.png"),
+    ]
+    out = va.create_smooth_timelapse(
+        images,
+        output_filename="tl_missing.mp4",
+        transition_duration=0.2,
+        frame_durations=[0.5, 0.3, 0.5],
+    )
+    assert _nonempty_file(out)

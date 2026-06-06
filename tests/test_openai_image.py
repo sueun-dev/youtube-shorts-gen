@@ -26,9 +26,7 @@ PNG_B64 = (
 def isolate_cache(monkeypatch, tmp_path):
     """Give every test a fresh, on-disk cache index in a temp location."""
     monkeypatch.setattr(openai_image, "_CACHE_INDEX", {})
-    monkeypatch.setattr(
-        openai_image, "_CACHE_INDEX_FILE", tmp_path / "index.json"
-    )
+    monkeypatch.setattr(openai_image, "_CACHE_INDEX_FILE", tmp_path / "index.json")
 
 
 def _make_client(b64=PNG_B64, empty=False):
@@ -95,9 +93,7 @@ def test_generate_image_cache_hit_skips_client(tmp_path, monkeypatch):
     cached_bytes = base64.b64decode(PNG_B64)
     cached.write_bytes(cached_bytes)
 
-    monkeypatch.setattr(
-        openai_image, "_get_cached_path", lambda key: cached
-    )
+    monkeypatch.setattr(openai_image, "_get_cached_path", lambda key: cached)
 
     client = _make_client()
     out = tmp_path / "out.png"

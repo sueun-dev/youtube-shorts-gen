@@ -137,9 +137,7 @@ def test_single_large_paragraph_falls_back_to_sentences(tmp_path):
     sentence = "This is a fairly wordy sentence about dragons and knights. "
     text = sentence * 12  # one paragraph, >500 chars, many sentences
 
-    segments = processor.get_content_segments(
-        text, summarize_long_paragraphs=False
-    )
+    segments = processor.get_content_segments(text, summarize_long_paragraphs=False)
 
     assert len(segments) > 1
     assert all(s.endswith(".") for s in segments)

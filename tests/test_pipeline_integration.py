@@ -6,6 +6,7 @@ TTS, and Runway clips are mocked to produce real local files; ffmpeg, cv2, and
 PIL run for real. The module skips entirely when ffmpeg is unavailable.
 """
 
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,8 +29,17 @@ def _png(path: Path, shade: int = 100) -> str:
 def _silent_mp3(path: Path, seconds: int = 2) -> str:
     subprocess.run(
         [
-            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-t", str(seconds), "-q:a", "9", str(path),
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=stereo",
+            "-t",
+            str(seconds),
+            "-q:a",
+            "9",
+            str(path),
         ],
         check=True,
         capture_output=True,
@@ -116,10 +126,17 @@ def test_ai_pipeline_end_to_end(tmp_path):
     run_dir.mkdir()
 
     def make_base_video(*_args, **_kwargs):
+        # Mirror real Runway: write under videos/ and return THAT path. The
+        # pipeline is responsible for staging it to output_story_video.mp4.
         img = _png(run_dir / "vg.png")
-        return VideoAssembler(str(run_dir)).create_video_from_images(
-            [img], output_filename="output_story_video.mp4", fps=4
+        base = VideoAssembler(str(run_dir)).create_video_from_images(
+            [img], output_filename="vg_base.mp4", fps=4
         )
+        videos_dir = run_dir / "videos"
+        videos_dir.mkdir(exist_ok=True)
+        dest = videos_dir / "runway_clip.mp4"
+        shutil.copy(base, dest)
+        return str(dest)
 
     def make_audio(*_args, **_kwargs):
         return _silent_mp3(run_dir / "story_audio.mp3")
