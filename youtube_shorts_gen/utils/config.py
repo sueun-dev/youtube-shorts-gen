@@ -268,11 +268,6 @@ RUNWAY_MOVEMENT_TYPES: Final[list[str]] = [
     "unfolds",
 ]
 
-# Fallback image: a 1x1 transparent PNG encoded as base64.
-EMPTY_IMAGE_B64: Final[str] = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
-)
-
 
 # --------------------------------------------------------------------------- #
 # Runtime configuration
