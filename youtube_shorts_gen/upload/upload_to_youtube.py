@@ -113,6 +113,14 @@ class YouTubeUploader:
                 except RefreshError:
                     logging.exception("Error refreshing credentials")
                     return None
+                # Persist the refreshed token so the next run reuses it instead
+                # of refreshing again every time.
+                try:
+                    token_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(token_path, "wb") as token:
+                        pickle.dump(creds, token)
+                except (OSError, pickle.PickleError):
+                    logging.exception("Could not persist refreshed OAuth token")
             else:
                 try:
                     flow = InstalledAppFlow.from_client_secrets_file(

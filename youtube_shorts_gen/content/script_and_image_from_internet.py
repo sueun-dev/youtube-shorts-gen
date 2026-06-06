@@ -74,12 +74,15 @@ class ScriptAndImageFromInternet:
         if len(sentences) > max_len:
             return sentences[:max_len]
         if len(sentences) < 2 and len(original_text) > fallback_min_chars:
+            # Prefer splitting on a space near the middle; fall back to a hard
+            # character split when the text has no space (e.g. a long token).
             midpoint = original_text.find(" ", len(original_text) // 2)
-            if midpoint != -1:
-                return [
-                    original_text[:midpoint].strip(),
-                    original_text[midpoint:].strip(),
-                ]
+            if midpoint == -1:
+                midpoint = len(original_text) // 2
+            first = original_text[:midpoint].strip()
+            second = original_text[midpoint:].strip()
+            if first and second:
+                return [first, second]
         return sentences
 
     def _save_mapping_file(
@@ -129,6 +132,8 @@ class ScriptAndImageFromInternet:
         # Split the story into sentences and normalize the count.
         sentences = self.tokenize_and_clean(story)
         sentences = self.normalise_sentence_count(sentences, original_text=story)
+        if not sentences:
+            raise RuntimeError("Story produced no usable sentences for images")
         logging.info("Split story into %d sentences", len(sentences))
 
         # Build image prompts and output paths for all sentences.

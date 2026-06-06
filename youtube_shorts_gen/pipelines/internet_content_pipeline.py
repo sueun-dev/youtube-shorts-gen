@@ -36,6 +36,11 @@ def _generate_tts_and_get_durations(
 
     audio_durations: list[float] = []
     for audio_path in audio_paths:
+        if not audio_path:
+            # Keep durations index-aligned with audio_paths; empty entries are
+            # skipped downstream.
+            audio_durations.append(0.0)
+            continue
         try:
             duration = MP3(audio_path).info.length
             logging.info("Audio file %s has duration %.2fs", audio_path, duration)
@@ -128,6 +133,9 @@ def _generate_synced_video_segments(
     segment_paths: list[str] = []
     rows = zip(sentences, image_paths, audio_paths, audio_durations, strict=False)
     for i, (sentence, image_path, audio_path, duration) in enumerate(rows, start=1):
+        if not audio_path:
+            logging.warning("Skipping segment %d: TTS produced no audio", i)
+            continue
         try:
             merged_path = _build_one_segment(
                 i,

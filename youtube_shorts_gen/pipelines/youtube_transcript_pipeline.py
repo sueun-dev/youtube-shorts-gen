@@ -65,18 +65,22 @@ def _write_mapping_file(
     run_dir: str,
     youtube_url: str,
     script_segments: list[str],
-    final_video_paths: list[str],
+    final_video_map: dict[int, str],
 ) -> None:
-    """Write a human-readable mapping file summarising segments and videos."""
+    """Write a human-readable mapping file summarising segments and videos.
+
+    ``final_video_map`` is keyed by 1-based segment index so each segment is
+    paired with its own video even when an earlier segment produced none.
+    """
     mapping_path = Path(run_dir) / "segments_mapping.txt"
     with mapping_path.open("w", encoding="utf-8") as f:
         f.write(f"YouTube URL: {youtube_url}\n")
         f.write(f"Total segments: {len(script_segments)}\n\n")
-        for i, segment in enumerate(script_segments):
-            f.write(f"--- Segment {i + 1} ---\n")
+        for i, segment in enumerate(script_segments, start=1):
+            f.write(f"--- Segment {i} ---\n")
             f.write(f"{segment[:200]}...\n")
-            if i < len(final_video_paths):
-                f.write(f"Video: {Path(final_video_paths[i]).name}\n")
+            video = final_video_map.get(i)
+            f.write(f"Video: {Path(video).name}\n" if video else "Video: (no video)\n")
             f.write("\n")
 
 
@@ -105,52 +109,70 @@ def _generate_line_assets(
     images_dir: Path,
     tts_generator: TTSGenerator,
     video_generator: VideoGenerator,
-) -> tuple[list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], int, int]:
     """Generate an image, narration, and (optionally) a Runway video per line.
 
-    Returns aligned-ish lists of (image paths, audio paths, runway video paths).
-    Runway video generation is capped at ``MAX_RUNWAY_VIDEOS_PER_SEGMENT``; later
-    lines reuse the last successful Runway clip.
+    The three returned lists are strictly index-aligned: for each committed line
+    (one that produced both an image and audio) exactly one entry is appended to
+    each list. The Runway entry is ``""`` when no clip is available, so it falls
+    back to the line's own static image in assembly. Runway generation is capped
+    at ``MAX_RUNWAY_VIDEOS_PER_SEGMENT``; later lines reuse the last clip.
+
+    Returns:
+        (image_paths, audio_paths, runway_video_paths, generated, reused).
     """
     image_paths: list[str] = []
     audio_paths: list[str] = []
     runway_video_paths: list[str] = []
-    last_runway_video_path: str | None = None
+    last_runway_video_path = ""
+    generated = 0
+    reused = 0
 
     for i, line in enumerate(lines, start=1):
         image_path = images_dir / f"line_{i}.png"
         image_result = generate_image_for_line(client, line, image_path)
         if not image_result:
             continue
-        image_paths.append(image_result)
 
         tts_generator.audio_path = tts_generator.run_dir / f"line_{i}_audio.mp3"
         audio_path = tts_generator.generate_from_text(line)
         if not audio_path:
             continue
+
+        # Commit the line: append exactly one entry to every list so indices
+        # stay aligned (a line's audio is never paired with another's visuals).
+        image_paths.append(image_result)
         audio_paths.append(audio_path)
 
+        runway_clip = ""
         if i <= MAX_RUNWAY_VIDEOS_PER_SEGMENT:
             try:
-                runway_video_path = video_generator.generate(
+                runway_clip = video_generator.generate(
                     image_path=image_result,
                     prompt_text=line,
                     duration=RUNWAY_DEFAULT_DURATION_SECONDS,
                 )
             except Exception:
                 logging.exception("Runway video generation failed for line %d", i)
-                runway_video_path = ""
-            if runway_video_path:
-                runway_video_paths.append(runway_video_path)
-                last_runway_video_path = runway_video_path
+                runway_clip = ""
+            if runway_clip:
+                last_runway_video_path = runway_clip
+                generated += 1
                 logging.info("Generated Runway video for line %d", i)
+            elif last_runway_video_path:
+                runway_clip = last_runway_video_path
+                reused += 1
+                logging.info("Reusing last Runway video for line %d", i)
         elif last_runway_video_path:
-            runway_video_paths.append(last_runway_video_path)
+            runway_clip = last_runway_video_path
+            reused += 1
             logging.info("Reusing last Runway video for line %d", i)
         else:
             logging.info("Using static image for line %d", i)
 
-    return image_paths, audio_paths, runway_video_paths
+        runway_video_paths.append(runway_clip)
+
+    return image_paths, audio_paths, runway_video_paths, generated, reused
 
 
 def _assemble_segment_videos(
@@ -162,9 +184,12 @@ def _assemble_segment_videos(
     """Build one video per line, preferring Runway clips over static images."""
     segment_videos: list[str] = []
     for i in range(min(len(image_paths), len(audio_paths))):
-        if i < len(runway_video_paths) and Path(runway_video_paths[i]).exists():
+        runway_clip = runway_video_paths[i] if i < len(runway_video_paths) else ""
+        # Note: an empty path must be rejected explicitly — Path("").exists()
+        # is True (it resolves to the current directory).
+        if runway_clip and Path(runway_clip).exists():
             segment_video = video_assembler.create_segment_video_with_runway(
-                video_path=runway_video_paths[i], audio_path=audio_paths[i], index=i
+                video_path=runway_clip, audio_path=audio_paths[i], index=i
             )
             logging.info("Created segment video with Runway for line %d", i + 1)
         else:
@@ -191,7 +216,13 @@ def process_segment_into_video(
         tts_generator = TTSGenerator(str(audio_dir), lang="ko")
         video_generator = VideoGenerator(str(segment_dir))
 
-        image_paths, audio_paths, runway_video_paths = _generate_line_assets(
+        (
+            image_paths,
+            audio_paths,
+            runway_video_paths,
+            runway_generated,
+            runway_reused,
+        ) = _generate_line_assets(
             client, lines, images_dir, tts_generator, video_generator
         )
 
@@ -208,7 +239,6 @@ def process_segment_into_video(
             final_video = ""
             logging.error("Segment %d video creation failed", segment_index)
 
-        runway_generated = min(len(lines), MAX_RUNWAY_VIDEOS_PER_SEGMENT)
         return {
             "segment_index": segment_index,
             "segment_text": segment,
@@ -218,7 +248,7 @@ def process_segment_into_video(
             "segment_videos": segment_videos,
             "final_video": final_video,
             "runway_videos_generated": runway_generated,
-            "runway_videos_reused": max(0, len(runway_video_paths) - runway_generated),
+            "runway_videos_reused": runway_reused,
         }
     except Exception as exc:
         logging.exception("Segment %d processing error", segment_index)
@@ -268,6 +298,7 @@ def run_youtube_transcript_pipeline(run_dir: str, youtube_url: str) -> dict[str,
 
         segment_results: list[dict[str, Any]] = []
         final_video_paths: list[str] = []
+        final_video_map: dict[int, str] = {}
 
         for i, segment in enumerate(script_segments, start=1):
             logging.info(
@@ -288,10 +319,11 @@ def run_youtube_transcript_pipeline(run_dir: str, youtube_url: str) -> dict[str,
                 main_final = Path(run_dir) / f"segment_{i}_video.mp4"
                 _copy_segment_video(src_path, main_final)
                 final_video_paths.append(str(main_final))
+                final_video_map[i] = str(main_final)
                 _copy_segment_video(src_path, segment_dir / FINAL_VIDEO_FILENAME)
                 logging.info("[YouTube Transcript Pipeline] Segment %d completed", i)
 
-        _write_mapping_file(run_dir, youtube_url, script_segments, final_video_paths)
+        _write_mapping_file(run_dir, youtube_url, script_segments, final_video_map)
         logging.info(
             "[YouTube Transcript Pipeline] %d segments processed",
             len(script_segments),
